@@ -1,0 +1,38 @@
+replicaCount: 2
+
+image:
+  repository: viaios/ai-kernel
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8082
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+env:
+  DB_HOST: postgres.viaios.svc.cluster.local
+  DB_USER: viaios
+  DB_PASSWORD: viaios
+  KAFKA_BOOTSTRAP_SERVERS: kafka.viaios.svc.cluster.local:9092
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+    port: 8082
+  readiness:
+    path: /actuator/health/readiness
+    port: 8082
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70

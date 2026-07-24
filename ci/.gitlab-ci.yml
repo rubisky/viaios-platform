@@ -1,0 +1,166 @@
+stages:
+  - lint
+  - test
+  - build
+  - scan
+  - docker-build
+  - deploy-dev
+  - integration-test
+  - deploy-staging
+  - deploy-prod
+
+variables:
+  DOCKER_REGISTRY: ${CI_REGISTRY_IMAGE}
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  MAVEN_OPTS: "-Dmaven.repo.local=${CI_PROJECT_DIR}/.m2/repository"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .gradle/
+    - .m2/
+    - web/frontend/node_modules/
+
+# ===== Lint =====
+lint-java:
+  stage: lint
+  image: eclipse-temurin:21-jdk
+  script:
+    - ./gradlew spotlessCheck || true
+  allow_failure: true
+
+lint-python:
+  stage: lint
+  image: python:3.11-slim
+  script:
+    - pip install ruff
+    - ruff check services/*/src/
+
+lint-js:
+  stage: lint
+  image: node:20-alpine
+  script:
+    - cd web/frontend && npm ci && npm run lint
+  allow_failure: true
+
+# ===== Test =====
+unit-test-java:
+  stage: test
+  image: eclipse-temurin:21-jdk
+  services:
+    - postgres:16
+  variables:
+    SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/viaios
+  script:
+    - ./gradlew test -x integrationTest
+
+unit-test-python:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - pip install -e services/agent-service/
+    - pip install -e services/capability-service/
+    - pip install -e services/knowledge-service/
+    - pytest services/*/tests/ -v
+
+unit-test-js:
+  stage: test
+  image: node:20-alpine
+  script:
+    - cd web/frontend && npm ci && npm test
+
+# ===== Build =====
+build-java:
+  stage: build
+  image: eclipse-temurin:21-jdk
+  script:
+    - ./gradlew bootJar -x test
+  artifacts:
+    paths:
+      - services/*/build/libs/*.jar
+      - gateway/api-gateway/build/libs/*.jar
+    expire_in: 7d
+
+build-python:
+  stage: build
+  image: python:3.11-slim
+  script:
+    - pip install build
+    - for svc in agent-service capability-service knowledge-service; do
+        cd services/$svc && python -m build && cd ../..;
+      done
+
+build-frontend:
+  stage: build
+  image: node:20-alpine
+  script:
+    - cd web/frontend && npm ci && npm run build
+  artifacts:
+    paths:
+      - web/frontend/dist/
+    expire_in: 7d
+
+# ===== Security Scan =====
+security-scan:
+  stage: scan
+  image: aquasec/trivy:latest
+  script:
+    - trivy fs --severity HIGH,CRITICAL --exit-code 0 .
+  allow_failure: true
+
+sast:
+  stage: scan
+  image: semgrep/semgrep
+  script:
+    - semgrep ci --config auto --error
+  allow_failure: true
+
+# ===== Docker =====
+docker-build:
+  stage: docker-build
+  image: docker:24-dind
+  script:
+    - docker build -t ${DOCKER_REGISTRY}/control-center:${CI_COMMIT_SHA} services/control-center/
+    - docker build -t ${DOCKER_REGISTRY}/ai-kernel:${CI_COMMIT_SHA} services/ai-kernel/
+    - docker build -t ${DOCKER_REGISTRY}/gateway:${CI_COMMIT_SHA} gateway/api-gateway/
+    - docker push ${DOCKER_REGISTRY}/control-center:${CI_COMMIT_SHA}
+  only:
+    - main
+    - develop
+
+# ===== Deploy =====
+deploy-dev:
+  stage: deploy-dev
+  image: dtzar/helm-kubectl
+  script:
+    - helm upgrade --install viaios ./infra/helm/viaios -f ./infra/helm/viaios/values-dev.yaml --set image.tag=${CI_COMMIT_SHA}
+  environment: development
+  only:
+    - develop
+
+integration-test:
+  stage: integration-test
+  image: node:20-alpine
+  script:
+    - cd web/frontend && npx playwright test --project=chromium
+  needs: [deploy-dev]
+  allow_failure: true
+
+deploy-staging:
+  stage: deploy-staging
+  image: dtzar/helm-kubectl
+  script:
+    - helm upgrade --install viaios ./infra/helm/viaios -f ./infra/helm/viaios/values-staging.yaml --set image.tag=${CI_COMMIT_SHA}
+  environment: staging
+  only:
+    - main
+
+deploy-prod:
+  stage: deploy-prod
+  image: dtzar/helm-kubectl
+  script:
+    - helm upgrade --install viaios ./infra/helm/viaios -f ./infra/helm/viaios/values-prod.yaml --set image.tag=${CI_COMMIT_TAG}
+  environment: production
+  when: manual
+  only:
+    - tags

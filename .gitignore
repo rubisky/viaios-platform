@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+dist/
+
+# Java / Gradle
+.gradle/
+build/
+*.class
+*.jar
+*.war
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# ===== Sensitive configs =====
+**/application*.yml
+**/application*.yaml
+*.env
+!application.example.yml
+!application.example.yaml
+
+# ===== Docker =====
+*.log
+
+# ===== Coverage =====
+coverage/
+htmlcov/
+.pytest_cache/

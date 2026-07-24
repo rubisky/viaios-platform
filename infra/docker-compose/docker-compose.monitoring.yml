@@ -1,0 +1,102 @@
+# VIAIOS Monitoring Stack — Prometheus + Grafana + Jaeger + Exporters
+# Usage: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+
+version: "3.9"
+
+services:
+  # === Prometheus ===
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: viaios-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/alerts.yml:/etc/prometheus/rules/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - viaios-net
+    restart: unless-stopped
+
+  # === Grafana ===
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: viaios-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: viaios-admin-2024
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/service-overview.json
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ../grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ../grafana/dashboards/:/etc/grafana/dashboards/:ro
+    networks:
+      - viaios-net
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # === Jaeger — Distributed Tracing ===
+  jaeger:
+    image: jaegertracing/all-in-one:1.58
+    container_name: viaios-jaeger
+    ports:
+      - "16686:16686"   # UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: badger
+      BADGER_EPHEMERAL: "false"
+      BADGER_DIRECTORY_VALUE: /badger/data
+      BADGER_DIRECTORY_KEY: /badger/key
+    volumes:
+      - jaeger_data:/badger
+    networks:
+      - viaios-net
+    restart: unless-stopped
+
+  # === PostgreSQL Exporter ===
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: viaios-postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://viaios:viaios123@postgres:5432/viaios?sslmode=disable"
+    networks:
+      - viaios-net
+    restart: unless-stopped
+
+  # === Redis Exporter ===
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.60.0
+    container_name: viaios-redis-exporter
+    ports:
+      - "9121:9121"
+    command:
+      - '--redis.addr=redis://redis:6379'
+    networks:
+      - viaios-net
+    restart: unless-stopped
+
+networks:
+  viaios-net:
+    external: true
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  jaeger_data:

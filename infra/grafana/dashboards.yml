@@ -1,0 +1,10 @@
+# Grafana Dashboard Provisioning
+apiVersion: 1
+
+providers:
+  - name: VIAIOS
+    folder: VIAIOS
+    type: file
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: true

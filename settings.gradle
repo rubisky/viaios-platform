@@ -1,0 +1,12 @@
+rootProject.name = "viaios"
+
+include "services:control-center"
+include "services:ai-kernel"
+include "services:video-access"
+include "services:analysis"
+include "services:search"
+include "services:case-service"
+include "services:report-service"
+include "services:alarm-service"
+include "services:workflow-service"
+include "gateway:api-gateway"

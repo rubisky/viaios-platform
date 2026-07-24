@@ -1,0 +1,46 @@
+replicaCount: 2
+
+image:
+  repository: viaios/workflow-service
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8089
+
+resources:
+  limits:
+    cpu: "1.0"
+    memory: "1Gi"
+  requests:
+    cpu: "0.5"
+    memory: "512Mi"
+
+env:
+  - name: SPRING_DATASOURCE_URL
+    value: "jdbc:postgresql://postgres:5432/viaios_workflows"
+  - name: SPRING_DATASOURCE_USERNAME
+    value: "viaios"
+  - name: WORKFLOW_EXECUTION_MAX_CONCURRENT
+    value: "50"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health
+    port: 8089
+  initialDelaySeconds: 20
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health
+    port: 8089
+  initialDelaySeconds: 30
+  periodSeconds: 15

@@ -1,0 +1,48 @@
+replicaCount: 2
+
+image:
+  repository: viaios/search-service
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8085
+
+resources:
+  limits:
+    cpu: "1.0"
+    memory: "1Gi"
+  requests:
+    cpu: "0.5"
+    memory: "512Mi"
+
+env:
+  - name: SPRING_DATASOURCE_URL
+    value: "jdbc:postgresql://postgres:5432/viaios_search"
+  - name: SPRING_DATASOURCE_USERNAME
+    value: "viaios"
+  - name: MILVUS_HOST
+    value: "milvus"
+  - name: MILVUS_PORT
+    value: "19530"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health
+    port: 8085
+  initialDelaySeconds: 20
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health
+    port: 8085
+  initialDelaySeconds: 30
+  periodSeconds: 15

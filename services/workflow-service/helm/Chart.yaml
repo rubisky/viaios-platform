@@ -1,0 +1,6 @@
+apiVersion: v2
+name: workflow-service
+description: VIAIOS Workflow OS — DSL Execution Engine
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

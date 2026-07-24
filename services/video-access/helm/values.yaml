@@ -1,0 +1,38 @@
+replicaCount: 3
+
+image:
+  repository: viaios/video-access
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8083
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+env:
+  DB_HOST: postgres.viaios.svc.cluster.local
+  DB_USER: viaios
+  DB_PASSWORD: viaios
+  KAFKA_BOOTSTRAP_SERVERS: kafka.viaios.svc.cluster.local:9092
+
+probes:
+  liveness:
+    path: /actuator/health/liveness
+    port: 8083
+  readiness:
+    path: /actuator/health/readiness
+    port: 8083
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 12
+  targetCPUUtilizationPercentage: 70

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: video-access
+description: VIAIOS Video Access Gateway — camera management, stream control, and multi-protocol adaptation
+type: application
+version: 0.1.0
+appVersion: "0.0.1"

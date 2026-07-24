@@ -1,0 +1,21 @@
+package com.viaios.gateway;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.info.Contact;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI viaiosOpenAPI() {
+        return new OpenAPI()
+            .info(new Info()
+                .title("VIAIOS Enterprise 4.0 LTS API")
+                .version("4.0.0")
+                .description("Visual Intelligence AI Operating System - API Documentation")
+                .contact(new Contact().name("VIAIOS Team").email("admin@viaios.com")));
+    }
+}

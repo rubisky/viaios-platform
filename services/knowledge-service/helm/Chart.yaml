@@ -1,0 +1,6 @@
+apiVersion: v2
+name: knowledge-service
+description: VIAIOS Knowledge Service — Knowledge OS with GraphRAG
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
