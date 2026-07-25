@@ -60,31 +60,55 @@ class ImageSearchEngine:
 
     def search_by_image(self, image_data: str, top_k: int = 20,
                         modality: str = "person") -> Dict[str, Any]:
-        """Search by image data (base64 or URL)."""
-        # Generate a deterministic hash from image data for consistent results
-        image_hash = hashlib.md5(image_data.encode()[:100]).hexdigest()
-
-        import random
-        random.seed(int(image_hash[:8], 16) % 100000)
-
+        """Search by image data — real ONNX detection when available."""
         results = []
+
+        # Try real ONNX detection first
+        try:
+            from .inference_pipeline import get_pipeline
+            import base64 as b64, io as _io
+            from PIL import Image
+            import numpy as np
+            raw = b64.b64decode(image_data)
+            img = Image.open(_io.BytesIO(raw)).convert("RGB")
+            arr = np.array(img)
+            pipe = get_pipeline("detection")
+            det_result = pipe.run(arr)
+            detections = det_result.get("detections", [])
+            for i, d in enumerate(detections[:top_k]):
+                results.append({
+                    "id": f"onnx-{i:03d}", "type": modality,
+                    "score": d.get("confidence", 0.9),
+                    "camera": "ai-detected",
+                    "camera_name": f"AI Detection",
+                    "class": d.get("class", "unknown"),
+                    "bbox": d.get("bbox", []),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "source": "onnx",
+                })
+            health_monitor.record("image_searches_onnx", 1)
+            return {"results": results, "count": len(results),
+                    "search_type": "image", "modality": modality, "source": "onnx"}
+        except Exception as e:
+            logger.warning("ONNX image search failed, using fallback: %s", e)
+
+        # Fallback: deterministic mock
+        import random
+        image_hash = hashlib.md5(image_data.encode()[:100]).hexdigest()
+        random.seed(int(image_hash[:8], 16) % 100000)
         for i in range(top_k):
             score = round(random.uniform(0.70, 0.98), 3)
-            camera_id = f"cam-{random.randint(1, 12):03d}"
             results.append({
                 "id": f"img-{image_hash[:6]}-{i:03d}",
-                "type": modality,
-                "score": score,
-                "camera": camera_id,
-                "camera_name": f"Camera {camera_id.split('-')[1]}",
-                "thumbnail": f"/snapshots/{camera_id}_match_{i}.jpg",
-                "similarity": f"{score*100:.0f}%",
+                "type": modality, "score": score,
+                "camera": f"cam-{random.randint(1, 12):03d}",
+                "camera_name": f"Camera {random.randint(1, 12)}",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "attributes": {"match_type": "visual", "feature_distance": round(1 - score, 3)},
+                "source": "mock",
             })
         health_monitor.record("image_searches", 1)
         return {"results": sorted(results, key=lambda x: -x["score"]), "count": len(results),
-                "search_type": "image", "modality": modality}
+                "search_type": "image", "modality": modality, "source": "mock"}
 
     def get_stats(self) -> Dict:
         metrics = health_monitor.get_metrics()

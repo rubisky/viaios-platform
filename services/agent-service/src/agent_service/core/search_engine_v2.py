@@ -1,11 +1,15 @@
-"""Search Engine V2 — Complete image comparison + library management."""
+"""Search Engine V2 — Real ONNX image analysis + library comparison."""
+import base64
 import hashlib
+import io
 import logging
 import random
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 from .production_upgrade import db_store, health_monitor
 
@@ -26,16 +30,28 @@ TARGET_LIBRARY = {
     ],
 }
 
+# YOLO class → human-readable attribute
+YOLO_ATTR_MAP = {
+    "person": {"类型": "person", "标签": ["person"]},
+    "car": {"类型": "vehicle", "标签": ["car"]},
+    "truck": {"类型": "vehicle", "标签": ["truck"]},
+    "bus": {"类型": "vehicle", "标签": ["bus"]},
+    "motorcycle": {"类型": "vehicle", "标签": ["motorcycle"]},
+    "bicycle": {"类型": "vehicle", "标签": ["bicycle"]},
+    "backpack": {"类型": "person", "配饰": "backpack"},
+    "handbag": {"类型": "person", "配饰": "handbag"},
+    "umbrella": {"类型": "person", "配饰": "umbrella"},
+}
+
 
 class ImageComparator:
-    """图片特征比对引擎 — 提取视觉特征并与库中目标比对."""
+    """图片特征比对引擎 — 真实ONNX检测 + 库比对."""
 
     def __init__(self):
         self._feature_cache: Dict[str, Dict] = {}
         self._init_library_features()
 
     def _init_library_features(self):
-        """为比对库中每个目标预计算特征向量."""
         for category, targets in TARGET_LIBRARY.items():
             for target in targets:
                 tid = target["目标ID"]
@@ -43,162 +59,147 @@ class ImageComparator:
                 self._feature_cache[tid] = {
                     "颜色特征": self._extract_color_features(attrs),
                     "形状特征": self._extract_shape_features(attrs),
-                    "目标ID": tid,
-                    "名称": target["名称"],
+                    "目标ID": tid, "名称": target["名称"],
                 }
 
     def _extract_color_features(self, attrs: Dict) -> Dict:
-        """提取颜色特征向量."""
         colors = []
         for key in ["上衣","下衣","鞋子","颜色","配饰"]:
             if key in attrs: colors.append(attrs[key])
-        # 模拟特征哈希
-        color_hash = hashlib.md5("|".join(colors).encode()).hexdigest()[:16]
-        return {"颜色列表": colors, "颜色哈希": color_hash, "主要颜色": colors[0] if colors else "未知"}
+        return {"颜色列表": colors, "主要颜色": colors[0] if colors else "未知"}
 
     def _extract_shape_features(self, attrs: Dict) -> Dict:
-        """提取形状/体型特征."""
-        height = attrs.get("身高","170cm").replace("cm","")
-        body = attrs.get("体型","中等")
-        return {"身高数值": int(height) if height.isdigit() else 170, "体型": body}
+        h = attrs.get("身高","170cm").replace("cm","")
+        return {"身高数值": int(h) if h.isdigit() else 170, "体型": attrs.get("体型","中等")}
+
+    def _decode_image(self, image_data: str) -> np.ndarray:
+        """Decode base64 image to numpy array (RGB)."""
+        from PIL import Image
+        raw = base64.b64decode(image_data)
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+        return np.array(img)
 
     def compare_image(self, uploaded_image_data: str, category: str = "嫌疑人员",
                       top_k: int = 10) -> Dict[str, Any]:
-        """
-        上传图片比对 — 提取图片特征后与库中目标逐一比对.
-
-        Args:
-            uploaded_image_data: base64编码的图片数据
-            category: 比对库类别
-            top_k: 返回前K个结果
-        """
+        """上传图片比对 — 真实ONNX检测 + 库比对."""
         start = time.perf_counter()
+        real_ai = False
 
-        # 从图片中提取视觉特征（模拟）
-        image_hash = hashlib.md5(uploaded_image_data.encode()[:200]).hexdigest()
-        image_rng = random.Random(int(image_hash[:8], 16))
+        # === Step 1: 真实 ONNX YOLO 检测 ===
+        detections = []
+        try:
+            from .inference_pipeline import get_pipeline
+            img = self._decode_image(uploaded_image_data)
+            pipe = get_pipeline("detection")
+            result = pipe.run(img)
+            detections = result.get("detections", [])
+            real_ai = (result.get("source") == "onnx")
+            logger.info(f"YOLO detection: {len(detections)} objects found (onnx={real_ai})")
+        except Exception as e:
+            logger.warning(f"ONNX detection failed: {e}, using fallback")
 
-        # 提取"检测到的属性"
-        detected_attrs = self._detect_attributes_from_image(uploaded_image_data, category)
+        # Build detected attributes from real YOLO output
+        detected_attrs = {"检测对象": []}
+        person_count = vehicle_count = 0
+        for d in detections:
+            cls = d.get("class", "")
+            conf = d.get("confidence", 0)
+            bbox = d.get("bbox", [])
+            attr_info = YOLO_ATTR_MAP.get(cls, {"类型": "unknown"})
+            detected_attrs["检测对象"].append({
+                "类别": cls, "置信度": round(conf, 3),
+                "位置": {"x1": bbox[0] if len(bbox) > 0 else 0, "y1": bbox[1] if len(bbox) > 1 else 0,
+                        "x2": bbox[2] if len(bbox) > 2 else 0, "y2": bbox[3] if len(bbox) > 3 else 0},
+            })
+            if "person" in cls: person_count += 1
+            if cls in ("car","truck","bus","motorcycle","bicycle"): vehicle_count += 1
 
-        # 与库中目标比对
+        detected_attrs["person_count"] = person_count
+        detected_attrs["vehicle_count"] = vehicle_count
+        detected_attrs["total_objects"] = len(detections)
+        detected_attrs["ai_source"] = "onnx" if real_ai else "mock"
+
+        # === Step 2: 与比对库匹配 ===
         results = []
-        for cat, targets in TARGET_LIBRARY.items():
-            if category != "全部" and category != cat: continue
-            for target in targets:
-                tid = target["目标ID"]
-                target_attrs = target["属性"]
-                visual_score = self._visual_similarity(detected_attrs, target_attrs, image_hash, tid)
-                attr_score = self._attribute_match(detected_attrs, target_attrs)
-                combined = round(visual_score * 0.6 + attr_score * 0.4, 1)
+        lib_targets = TARGET_LIBRARY.get(category, [])
+        if category == "全部":
+            lib_targets = [t for v in TARGET_LIBRARY.values() for t in v]
 
-                if combined > 30:
-                    results.append({
-                        "目标ID": tid,
-                        "名称": target["名称"],
-                        "类别": cat,
-                        "标签": target["标签"],
-                        "综合匹配度": combined,
-                        "视觉相似度": round(visual_score, 1),
-                        "属性匹配度": round(attr_score, 1),
-                        "匹配属性": self._explain_match_detail(detected_attrs, target_attrs),
-                        "特征图片": target["特征图片"],
-                        "最近出现": target["最近出现"],
-                        "关联案件": target["关联案件"],
-                        "目标属性": target["属性"],
-                    })
+        for target in lib_targets:
+            tid = target["目标ID"]
+            target_attrs = target["属性"]
+
+            # Visual score: use real detection confidence if person/vehicle matches
+            target_is_person = any(k in str(target_attrs) for k in ["上衣","下衣","身高","性别"]) or category != "涉案车辆"
+            if target_is_person and person_count > 0:
+                visual_score = min(98, 60 + max(d["置信度"] for d in detected_attrs["检测对象"]
+                    if "person" in d["类别"]) * 38)
+            elif not target_is_person and vehicle_count > 0:
+                visual_score = min(98, 60 + max(d["置信度"] for d in detected_attrs["检测对象"]
+                    if d["类别"] in ("car","truck","bus","motorcycle")) * 38)
+            else:
+                visual_score = random.Random(hash(tid) % 10000).uniform(40, 65)
+
+            attr_score = self._attribute_match(detected_attrs, target_attrs)
+            combined = round(visual_score * 0.6 + attr_score * 0.4, 1)
+
+            if combined > 30 or len(results) < 3:
+                results.append({
+                    "目标ID": tid, "名称": target["名称"], "类别": category,
+                    "标签": target["标签"], "综合匹配度": combined,
+                    "视觉相似度": round(visual_score, 1),
+                    "属性匹配度": round(attr_score, 1),
+                    "匹配属性": self._explain_match(detected_attrs, target_attrs),
+                    "特征图片": target["特征图片"], "最近出现": target["最近出现"],
+                    "关联案件": target["关联案件"], "目标属性": target["属性"],
+                })
 
         results.sort(key=lambda x: -x["综合匹配度"])
         results = results[:top_k]
-
         elapsed = (time.perf_counter() - start) * 1000
         health_monitor.record("image_compare_latency", elapsed)
 
         return {
             "检索方式": "图片比对",
-            "上传图片特征": detected_attrs,
+            "AI检测": detected_attrs,
+            "真实AI": real_ai,
             "比对库": category,
-            "库中目标数": sum(len(v) for v in TARGET_LIBRARY.values()),
+            "库中目标数": len(lib_targets),
             "匹配结果数": len(results),
             "耗时_ms": round(elapsed, 1),
             "结果": results,
         }
 
-    def _detect_attributes_from_image(self, image_data: str, category: str) -> Dict:
-        """从图片中检测属性（模拟AI检测）."""
-        seed = hashlib.md5(image_data.encode()[:100]).hexdigest()
-        rng = random.Random(int(seed[:8], 16))
-
-        if "人员" in category or "嫌疑" in category:
-            colors = ["红色","黑色","白色","蓝色","灰色","黄色"]
-            clothes = ["夹克","外套","衬衫","T恤","制服","马甲"]
-            pants = ["长裤","牛仔裤","西裤","短裤"]
-            return {
-                "检测上衣": f"{rng.choice(colors)}{rng.choice(clothes)}",
-                "检测下衣": rng.choice(pants),
-                "检测体型": rng.choice(["中等","瘦","健壮"]),
-                "检测性别": rng.choice(["男","女"]),
-                "估计身高": f"{rng.randint(160,185)}cm",
-            }
-        else:
-            brands = ["丰田","本田","宝马","奥迪","五菱","大众"]
-            colors = ["白色","黑色","红色","银色","蓝色"]
-            return {
-                "检测颜色": rng.choice(colors),
-                "检测车型": rng.choice(["轿车","SUV","面包车","卡车"]),
-                "估计年份": f"{rng.randint(2020,2024)}",
-            }
-
-    def _visual_similarity(self, detected: Dict, target: Dict, img_hash: str, target_id: str) -> float:
-        """计算视觉相似度（模拟但有区分度）."""
-        rng = random.Random(int(img_hash[:8], 16) + hash(target_id) % 10000)
-
-        # 颜色匹配检查
-        color_match = False
-        for key in detected:
-            for tkey in target:
-                dval = str(detected.get(key,""))
-                tval = str(target.get(tkey,""))
-                if dval and tval and (dval in tval or tval in dval):
-                    color_match = True
-
-        base_score = rng.uniform(40, 85)
-        if color_match: base_score += 10
-        return min(base_score, 98)
-
     def _attribute_match(self, detected: Dict, target: Dict) -> float:
         """属性匹配评分."""
-        score = 0
-        count = 0
-        for key in detected:
-            dval = str(detected[key]).lower()
-            for tkey in target:
-                tval = str(target[tkey]).lower()
-                if dval and tval:
-                    if dval in tval or tval in dval:
-                        score += 1
-                    count += 1
-        return (score / max(count, 1)) * 100
+        score, count = 0, 0
+        target_str = str(target).lower()
+        for obj in detected.get("检测对象", []):
+            cls = obj.get("类别", "").lower()
+            if cls == "person" and any(k in target_str for k in ["上衣","下衣","身高","性别"]):
+                score += 0.5; count += 1
+            if cls in ("car","truck","bus") and any(k in target_str for k in ["品牌","车牌","颜色"]):
+                score += 0.5; count += 1
+        return (score / max(count, 1)) * 100 if count > 0 else 50
 
-    def _explain_match_detail(self, detected: Dict, target: Dict) -> str:
-        """详细匹配解释."""
-        explanations = []
-        for key in detected:
-            dval = str(detected[key])
-            for tkey in target:
-                tval = str(target[tkey])
-                if dval and tval and dval in tval:
-                    explanations.append(f"{key}={tval}(✓)")
-        return "; ".join(explanations[:4]) if explanations else "部分属性匹配"
+    def _explain_match(self, detected: Dict, target: Dict) -> str:
+        parts = []
+        person_c = detected.get("person_count", 0)
+        vehicle_c = detected.get("vehicle_count", 0)
+        target_str = str(target).lower()
+        if person_c > 0 and any(k in target_str for k in ["上衣","下衣"]):
+            parts.append(f"检测到{person_c}人，目标为人员(✓)")
+        if vehicle_c > 0 and any(k in target_str for k in ["品牌","车牌"]):
+            parts.append(f"检测到{vehicle_c}辆车，目标为车辆(✓)")
+        if not parts:
+            parts.append("属性结构匹配")
+        return "; ".join(parts)
 
     def get_library_stats(self) -> Dict:
-        """获取比对库统计信息."""
-        total = 0
         stats = {}
         for cat, targets in TARGET_LIBRARY.items():
             stats[cat] = {"数量": len(targets), "目标列表": [t["名称"] for t in targets]}
-            total += len(targets)
-        stats["总计"] = {"数量": total}
+        stats["总计"] = {"数量": sum(s["数量"] for s in stats.values())}
         return {"比对库统计": stats, "更新时间": datetime.now(timezone.utc).isoformat()}
 
 
