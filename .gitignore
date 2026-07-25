@@ -51,3 +51,5 @@ Thumbs.db
 coverage/
 htmlcov/
 .pytest_cache/
+test-results/
+tests/e2e/report/
