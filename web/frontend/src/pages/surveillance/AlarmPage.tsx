@@ -26,6 +26,8 @@ const AlarmPage: React.FC = () => {
   const [severityFilter, setSeverityFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('alarms');
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [newSinceLastRefresh, setNewSinceLastRefresh] = useState(0);
 
   const fetchAlarms = useCallback(async () => {
     setLoading(true);
@@ -38,9 +40,20 @@ const AlarmPage: React.FC = () => {
       setAlarms(Array.isArray(alarmData) ? alarmData : []);
       if (statsData) setStats(statsData);
       if (Array.isArray(rulesData)) setRules(rulesData);
+      // Detect new alarms since last refresh
+      const prevCount = alarms.length;
+      const newAlarms = Array.isArray(alarmData) ? alarmData : [];
+      if (prevCount > 0 && newAlarms.length > prevCount) {
+        const diff = newAlarms.length - prevCount;
+        setNewSinceLastRefresh(prev => prev + diff);
+        if (soundEnabled && diff > 0) {
+          try { const ctx = new (window as any).AudioContext(); const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = 880; gain.gain.value = 0.1; osc.start(); osc.stop(ctx.currentTime + 0.15); } catch {}
+        }
+      }
+      setAlarms(newAlarms);
     } catch {}
     setLoading(false);
-  }, []);
+  }, [alarms.length, soundEnabled]);
 
   useEffect(() => {
     fetchAlarms();
@@ -94,8 +107,9 @@ const AlarmPage: React.FC = () => {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={3} style={{ color: '#e0e0e0', margin: 0 }}><BellOutlined /> 智能告警 <Badge count={stats.by_status?.TRIGGERED || 0} style={{ backgroundColor: '#ff4d4f' }} /></Title>
+        <Title level={3} style={{ color: '#e0e0e0', margin: 0 }}><BellOutlined /> 智能告警 <Badge count={stats.by_status?.TRIGGERED || 0} style={{ backgroundColor: '#ff4d4f' }} /> {newSinceLastRefresh > 0 && <Badge count={`+${newSinceLastRefresh}`} style={{ backgroundColor: '#faad14', marginLeft: 8 }} />}</Title>
         <Space>
+          <Button onClick={() => { setSoundEnabled(!soundEnabled); if (!soundEnabled) message.info('声音告警已开启'); else message.info('声音告警已关闭'); }} type={soundEnabled ? 'primary' : 'default'} size="small" danger={soundEnabled}>🔊 {soundEnabled ? '静音' : '声音'}</Button>
           <Button onClick={simulateAlarm} icon={<ThunderboltOutlined />}>模拟告警</Button>
           <Button onClick={() => setAutoRefresh(!autoRefresh)} type={autoRefresh ? 'primary' : 'default'} size="small">{autoRefresh ? '自动刷新' : '手动'}</Button>
           <Button icon={<ReloadOutlined />} onClick={fetchAlarms} loading={loading}>刷新</Button>

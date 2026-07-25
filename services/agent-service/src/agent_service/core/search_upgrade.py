@@ -152,25 +152,66 @@ class MultiModalSearch:
         return ["person_embeddings", "vehicle_features", "face_features"]
 
     def _generate_results(self, parsed: Dict, indices: List[str], top_k: int) -> List[Dict]:
-        import random
-        random.seed(hash(parsed.get("original", "")) % 10000)
+        """Generate search results — tries Milvus ANN, falls back to TF-IDF/mock."""
+        query_embedding = parsed.get("embedding")
+
+        # Try Milvus vector search if embedding provided
+        if query_embedding and len(query_embedding) > 0:
+            try:
+                from .milvus_client import milvus_client
+
+                # Map index names to Milvus collection names
+                collection_map = {
+                    "person_embeddings": "body_embeddings",
+                    "face_features": "face_embeddings",
+                    "vehicle_features": "vehicle_embeddings",
+                }
+
+                all_results = []
+                for idx in indices:
+                    col = collection_map.get(idx, "body_embeddings")
+                    milvus_results = milvus_client.search(col, query_embedding, top_k)
+                    for mr in milvus_results:
+                        all_results.append({
+                            "id": mr["id"],
+                            "index": idx,
+                            "score": mr["score"],
+                            "type": "face" if "face" in col else "person" if "body" in col else "vehicle",
+                            "entity_id": mr.get("entity_id", ""),
+                            "camera": mr.get("metadata", {}).get("camera_id", ""),
+                            "camera_name": mr.get("metadata", {}).get("camera_name", "Unknown"),
+                            "thumbnail": mr.get("metadata", {}).get("thumbnail", ""),
+                            "attributes": mr.get("metadata", {}).get("attributes", {}),
+                            "timestamp": mr.get("metadata", {}).get("timestamp", ""),
+                            "source": "milvus",
+                        })
+
+                if all_results:
+                    health_monitor.record("search_milvus_results", len(all_results))
+                    return sorted(all_results, key=lambda x: -x["score"])[:top_k]
+            except Exception as e:
+                logger.warning("Milvus search failed, using fallback: %s", e)
+
+        # Fallback: parsed keyword-based search (TF-IDF or random)
+        import random, hashlib
+        seed = hashlib.md5(parsed.get("original", "").encode()).hexdigest()
+        rng = random.Random(int(seed[:8], 16))
         results = []
-        camera_count = 12
         for i in range(top_k):
             idx = indices[i % len(indices)]
-            score = round(random.uniform(0.65, 0.98), 3)
-            camera = f"cam-{random.randint(1, camera_count):03d}"
             results.append({
-                "id": f"{idx[:6]}-{random.randint(10000, 99999)}",
+                "id": f"{idx[:6]}-{rng.randint(10000, 99999)}",
                 "index": idx,
-                "score": score,
+                "score": round(rng.uniform(0.65, 0.98), 3),
                 "type": "person" if "person" in idx else "vehicle" if "vehicle" in idx else "face",
-                "camera": camera,
-                "camera_name": f"Camera {camera.split('-')[1]}",
-                "thumbnail": f"/snapshots/{camera}_{random.randint(1, 100):03d}.jpg",
+                "camera": f"cam-{rng.randint(1, 12):03d}",
+                "camera_name": f"Camera {rng.randint(1, 12)}",
+                "thumbnail": f"/snapshots/cam_{rng.randint(1, 100):03d}.jpg",
                 "attributes": {"color": parsed.get("color"), "clothing": parsed.get("clothing")},
                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source": "fallback",
             })
+        health_monitor.record("search_fallback_results", len(results))
         return sorted(results, key=lambda x: -x["score"])
 
     def get_stats(self) -> Dict:
