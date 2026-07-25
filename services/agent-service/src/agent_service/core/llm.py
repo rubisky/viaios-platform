@@ -7,7 +7,7 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +26,12 @@ class LLMResponse:
     """Response from an LLM provider."""
     content: str
     model: str
-    usage: dict[str, int] = field(default_factory=dict)  # prompt_tokens, completion_tokens, total_tokens
+    usage: Dict[str, int] = field(default_factory=dict)  # prompt_tokens, completion_tokens, total_tokens
     finish_reason: str = "stop"
     latency_ms: float = 0
     request_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "content": self.content,
             "model": self.model,
@@ -48,7 +48,7 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     async def chat(
         self,
-        messages: list[LLMMessage],
+        messages: List[LLMMessage],
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
@@ -60,7 +60,7 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     async def stream_chat(
         self,
-        messages: list[LLMMessage],
+        messages: List[LLMMessage],
         model: Optional[str] = None,
         **kwargs,
     ):
@@ -104,7 +104,7 @@ class DeepSeekProvider(BaseLLMProvider):
 
     async def chat(
         self,
-        messages: list[LLMMessage],
+        messages: List[LLMMessage],
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
@@ -151,7 +151,7 @@ class DeepSeekProvider(BaseLLMProvider):
 
     async def stream_chat(
         self,
-        messages: list[LLMMessage],
+        messages: List[LLMMessage],
         model: Optional[str] = None,
         **kwargs,
     ):
@@ -196,7 +196,7 @@ class SimulatedProvider(BaseLLMProvider):
 
     async def chat(
         self,
-        messages: list[LLMMessage],
+        messages: List[LLMMessage],
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,

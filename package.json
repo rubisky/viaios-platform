@@ -1,0 +1,34 @@
+{
+  "name": "viaios-monorepo",
+  "version": "1.0.0",
+  "description": "- JDK 21 (Eclipse Temurin) - Python 3.11+ - Node.js 20 LTS - Docker 24+ - Gradle 8.5+ (wrapper included)",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "npx playwright test",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:chromium": "npx playwright test --project=chromium",
+    "test:e2e:debug": "npx playwright test --debug",
+    "test:report": "npx playwright show-report tests/e2e/report",
+    "test:critical": "npx playwright test tests/e2e/critical-flow.spec.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YOUR_USERNAME/viaios-platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/viaios-platform/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/viaios-platform#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}

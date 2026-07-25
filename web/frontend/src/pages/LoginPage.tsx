@@ -27,6 +27,7 @@ const LoginPage: React.FC = () => {
     setLoading(false);
 
     if (res.accessToken) {
+      sessionStorage.removeItem('viaios_401_redirected');
       setToken(res.accessToken);
       setUser({
         id: '1',

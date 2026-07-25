@@ -12,12 +12,23 @@ const NotificationBell: React.FC = () => {
   const navigate = useNavigate();
 
   const fetchAlarms = async () => {
+    const token = localStorage.getItem('viaios_token');
+    if (!token) return;
     try {
-      const res = await apiGet<any>('/api/v1/alarms', { status: 'TRIGGERED' });
-      const data = Array.isArray(res) ? res : res?.data || [];
+      // Use new notification center API
+      const res = await apiGet<any>('/api/v1/notifications?limit=10&unread=true');
+      const data = res?.notifications || [];
       setAlarms(data.slice(0, 10));
-      setCount(data.length);
-    } catch {}
+      setCount(res?.unread || data.length);
+    } catch {
+      // Fallback to alarm API
+      try {
+        const res = await apiGet<any>('/api/v1/alarms', { status: 'TRIGGERED' });
+        const data = Array.isArray(res) ? res : res?.data || [];
+        setAlarms(data.slice(0, 10));
+        setCount(data.length);
+      } catch {}
+    }
   };
 
   useEffect(() => { fetchAlarms(); const t = setInterval(fetchAlarms, 30000); return () => clearInterval(t); }, []);
@@ -29,12 +40,12 @@ const NotificationBell: React.FC = () => {
           <List.Item style={{ cursor: 'pointer' }} onClick={() => navigate('/surveillance')}>
             <div style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Tag color={a.severity === 'CRITICAL' ? 'red' : 'orange'}>{a.severity || 'MEDIUM'}</Tag>
+                <Tag color={a.severity === 'CRITICAL' ? 'red' : a.severity === 'high' ? 'orange' : 'blue'}>{a.severity || 'info'}</Tag>
                 <Text style={{ fontSize: 11, color: '#64748b' }}>
-                  {a.triggeredAt ? new Date(a.triggeredAt).toLocaleTimeString() : ''}
+                  {a.createdAt ? new Date(a.createdAt).toLocaleTimeString() : a.triggeredAt ? new Date(a.triggeredAt).toLocaleTimeString() : ''}
                 </Text>
               </div>
-              <Text style={{ fontSize: 13 }}>{a.message || a.type || 'Alarm'}</Text>
+              <Text style={{ fontSize: 13 }}>{a.title || a.message || a.type || 'Notification'}</Text>
             </div>
           </List.Item>
         )} />

@@ -40,6 +40,12 @@ client.interceptors.response.use(
       const msg = (data as any)?.message || '';
       if (status === 401) {
         console.warn('[401] Unauthorized:', error.config?.url);
+        // Clear expired token and redirect to login (once)
+        if (localStorage.getItem('viaios_token') && !sessionStorage.getItem('viaios_401_redirected')) {
+          sessionStorage.setItem('viaios_401_redirected', '1');
+          localStorage.removeItem('viaios_token');
+          window.location.href = '/login';
+        }
       } else if (status === 403) {
         console.error('[403] Forbidden:', msg);
       } else if (status === 404) {

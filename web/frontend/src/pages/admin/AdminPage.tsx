@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs, Table, Button, Modal, Form, Input, Select, message, Tag, Popconfirm, Card } from 'antd';
-import { PlusOutlined, DeleteOutlined, SafetyCertificateOutlined, CloudServerOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, SafetyCertificateOutlined, CloudServerOutlined, ApiOutlined } from '@ant-design/icons';
 import SystemHealth from './SystemHealth';
+import ApiDocs from './ApiDocs';
 import { apiGet, apiPost, apiDelete } from '../../api/client';
 
 // ====== Users Tab ======
@@ -198,6 +199,7 @@ const AdminPage: React.FC = () => {
           { key: 'roles', label: '角色管理', children: <RolesTab /> },
           { key: 'tenants', label: '租户管理', children: <TenantsTab /> },
           { key: 'health', label: <span><CloudServerOutlined /> 系统监控</span>, children: <SystemHealth /> },
+          { key: 'docs', label: <span><ApiOutlined /> API 文档</span>, children: <ApiDocs /> },
         ]}
       />
     </div>

@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class AgentStep:
     agent_id: str
     agent_name: str = ""
     agent_type: str = ""
-    input_mapping: dict[str, str] = field(default_factory=dict)
+    input_mapping: Dict[str, str] = field(default_factory=dict)
     condition: Optional[str] = None
     timeout_seconds: int = 300
 
@@ -35,14 +35,14 @@ class OrchestrationResult:
     workflow_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     mode: str = "sequential"
     status: str = "pending"  # pending, running, completed, failed, timeout
-    steps: list[dict[str, Any]] = field(default_factory=list)
+    steps: List[Dict[str, Any]] = field(default_factory=list)
     final_output: Any = None
     error: Optional[str] = None
     started_at: str = ""
     completed_at: str = ""
     total_latency_ms: float = 0
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "workflow_id": self.workflow_id,
             "mode": self.mode,
@@ -73,8 +73,8 @@ class AgentOrchestrator:
 
     async def execute_sequential(
         self,
-        steps: list[AgentStep],
-        initial_input: dict[str, Any],
+        steps: List[AgentStep],
+        initial_input: Dict[str, Any],
     ) -> OrchestrationResult:
         """Execute agents sequentially, passing output from one to the next."""
         import time
@@ -140,8 +140,8 @@ class AgentOrchestrator:
 
     async def execute_parallel(
         self,
-        steps: list[AgentStep],
-        initial_input: dict[str, Any],
+        steps: List[AgentStep],
+        initial_input: Dict[str, Any],
     ) -> OrchestrationResult:
         """Execute agents in parallel, merge results."""
         import time
@@ -208,8 +208,8 @@ class AgentOrchestrator:
 
     async def execute_voting(
         self,
-        steps: list[AgentStep],
-        initial_input: dict[str, Any],
+        steps: List[AgentStep],
+        initial_input: Dict[str, Any],
         threshold: float = 0.5,
     ) -> OrchestrationResult:
         """Run agents in parallel and vote on the result.
@@ -247,7 +247,7 @@ class AgentOrchestrator:
         self._workflows[result.workflow_id] = result
         return result
 
-    def _map_input(self, source: dict, mapping: dict[str, str]) -> dict:
+    def _map_input(self, source: dict, mapping: Dict[str, str]) -> dict:
         """Map input fields according to the mapping configuration."""
         if not mapping:
             return source
@@ -265,6 +265,6 @@ class AgentOrchestrator:
         """Get a workflow result by ID."""
         return self._workflows.get(workflow_id)
 
-    def list_workflows(self) -> list[OrchestrationResult]:
+    def list_workflows(self) -> List[OrchestrationResult]:
         """List all workflow results."""
         return list(self._workflows.values())

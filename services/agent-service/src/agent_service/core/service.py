@@ -1,11 +1,12 @@
 """Agent OS Runtime — Agent Registry and Task Executor."""
+from __future__ import annotations
 
 import asyncio
 import hashlib
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class Agent:
         name: str,
         description: str,
         agent_type: str,
-        config: dict[str, Any] | None = None,
+        config: Optional[Dict[str, Any]] = None,
     ):
         self.agent_id = agent_id
         self.name = name
@@ -50,7 +51,7 @@ class TaskResult:
         agent_id: str,
         status: str,
         output: Any = None,
-        error: str | None = None,
+        error: Optional[str] = None,
     ):
         self.task_id = task_id
         self.agent_id = agent_id
@@ -58,7 +59,7 @@ class TaskResult:
         self.output = output
         self.error = error
         self.created_at = datetime.now(timezone.utc)
-        self.completed_at: datetime | None = None
+        self.completed_at: Optional[datetime] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -83,7 +84,7 @@ class AgentRegistry:
         name: str,
         description: str,
         agent_type: str,
-        config: dict[str, Any] | None = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> Agent:
         agent_id = hashlib.sha256(
             f"{name}:{agent_type}:{uuid.uuid4()}".encode()
@@ -99,13 +100,13 @@ class AgentRegistry:
         logger.info("Registered agent: %s (%s)", name, agent_id)
         return agent
 
-    def list(self, agent_type: str | None = None) -> list[Agent]:
+    def list(self, agent_type: Optional[str] = None) -> list[Agent]:
         agents = list(self._agents.values())
         if agent_type:
             agents = [a for a in agents if a.agent_type == agent_type]
         return agents
 
-    def get(self, agent_id: str) -> Agent | None:
+    def get(self, agent_id: str) -> Optional[Agent]:
         return self._agents.get(agent_id)
 
     def remove(self, agent_id: str) -> bool:
@@ -176,10 +177,10 @@ class TaskExecutor:
             "confidence": 0.95,
         }
 
-    def get_task(self, task_id: str) -> TaskResult | None:
+    def get_task(self, task_id: str) -> Optional[TaskResult]:
         return self._tasks.get(task_id)
 
-    def list_tasks(self, agent_id: str | None = None) -> list[TaskResult]:
+    def list_tasks(self, agent_id: Optional[str] = None) -> list[TaskResult]:
         tasks = list(self._tasks.values())
         if agent_id:
             tasks = [t for t in tasks if t.agent_id == agent_id]

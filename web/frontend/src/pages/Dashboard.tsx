@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Typography, Tag, Spin } from 'antd';
+import { Row, Col, Card, Statistic, Typography, Tag } from 'antd';
 import { VideoCameraOutlined, AlertOutlined, CloudServerOutlined, FileSearchOutlined, SafetyCertificateOutlined, RobotOutlined } from '@ant-design/icons';
 import { checkAllServices, apiGet } from '../api/client';
 import { DashboardCharts } from '../components/DashboardCharts';
 import QuickActions from '../components/QuickActions';
+import DashboardSkeleton from '../components/DashboardSkeleton';
 import { useDashboardWebSocket } from '../hooks/useDashboardWebSocket';
 
 const { Title, Paragraph } = Typography;
@@ -17,7 +18,7 @@ interface ServiceStats {
   workflows?: number; tasks?: number;
   onnx?: boolean;
 }
-interface SysMetrics { cpu_percent?: number; memory_percent?: number; disk_percent?: number; disk_free_gb?: number; }
+interface SysMetrics { cpu_percent?: number; memory_percent?: number; disk_percent?: number; disk_free_gb?: number; health_score?: number; }
 
 const Dashboard: React.FC = () => {
   const [services, setServices] = useState<{ name: string; port: number; up: boolean }[]>([]);
@@ -42,8 +43,9 @@ const Dashboard: React.FC = () => {
     try { const r = await apiGet<any>('/api/v1/analysis/stats'); s.tasks = r.total; } catch {}
     try { const r = await apiGet<any>('/api/v1/capabilities/onnx-status'); s.onnx = r.onnx_available; } catch {}
     setStats(s);
-    // Fetch system metrics from Python agent (direct)
+    // Fetch system metrics + production health
     try { const m = await apiGet<SysMetrics>('/api/v1/system/metrics'); setMetrics(m); } catch {}
+    try { const h = await apiGet<any>('/api/v1/prod/health'); if (h?.score) setMetrics(prev => ({ ...prev, health_score: h.score.score })); } catch {}
     setLoading(false);
   };
 
@@ -66,7 +68,7 @@ const Dashboard: React.FC = () => {
     { title: 'Agent', value: stats.agents ?? '-', suffix: '就绪', icon: <RobotOutlined style={{ fontSize: 32, color: '#722ed1' }} />, color: '#722ed1' },
     { title: 'AI能力', value: stats.capabilities ?? '-', suffix: `${stats.models ?? '-'}模型`, icon: <SafetyCertificateOutlined style={{ fontSize: 32, color: '#13c2c2' }} />, color: '#13c2c2' },
     { title: 'AI引擎', value: stats.onnx ? 'ONNX' : 'Sim', suffix: stats.onnx ? '真实推理' : '模拟', icon: <RobotOutlined style={{ fontSize: 32, color: stats.onnx ? '#52c41a' : '#faad14' }} />, color: stats.onnx ? '#52c41a' : '#faad14' },
-    { title: 'CPU', value: metrics.cpu_percent ?? '-', suffix: '%', icon: <CloudServerOutlined style={{ fontSize: 32, color: (metrics.cpu_percent||0) > 80 ? '#ff4d4f' : '#52c41a' }} />, color: (metrics.cpu_percent||0) > 80 ? '#ff4d4f' : '#52c41a' },
+    { title: '生产评分', value: metrics.health_score ?? '-', suffix: '/100', icon: <CloudServerOutlined style={{ fontSize: 32, color: (metrics.health_score||0) >= 90 ? '#52c41a' : '#faad14' }} />, color: (metrics.health_score||0) >= 90 ? '#52c41a' : '#faad14' },
   ];
 
   return (
@@ -82,7 +84,10 @@ const Dashboard: React.FC = () => {
         </Paragraph>
       </div>
 
-      <Spin spinning={loading}>
+      {loading && services.length === 0 ? (
+        <DashboardSkeleton />
+      ) : (
+        <>
         <Row gutter={[16, 16]}>
           {statCards.map(card => (
             <Col xs={24} sm={12} lg={8} key={card.title}>
@@ -97,7 +102,6 @@ const Dashboard: React.FC = () => {
             </Col>
           ))}
         </Row>
-      </Spin>
 
       <div style={{ marginTop: 16 }}>
         <QuickActions />
@@ -139,6 +143,8 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
       </Row>
+      </>
+      )}
     </div>
   );
 };

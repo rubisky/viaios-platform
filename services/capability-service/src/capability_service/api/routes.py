@@ -1,6 +1,6 @@
 """Capability Service API Routes — 15 AI capabilities with Model Mesh."""
 import logging
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -39,7 +39,7 @@ class InferRequest(BaseModel):
     cap_type: Optional[str] = None
     cap_id: Optional[str] = None
     model_id: Optional[str] = None
-    inputs: dict[str, Any] = Field(default_factory=dict)
+    inputs: Dict[str, Any] = Field(default_factory=dict)
 
 
 @router.get("/api/v1/capabilities")
@@ -171,7 +171,7 @@ class BenchmarkRequest(BaseModel):
 
 
 class CompareRequest(BaseModel):
-    model_ids: list[str]
+    model_ids: List[str]
 
 
 @router.post("/api/v1/capabilities/benchmark")
@@ -273,3 +273,34 @@ async def quick_benchmark(request: BenchmarkRequest):
     )
 
     return {"status": "completed", "benchmark": result.to_dict()}
+
+
+# ===== Model Manager (Hot-Swap) =====
+from capability_service.core.model_manager import model_registry, init_demo_models
+
+class ModelRegReq(BaseModel):
+    name: str; version: str = "1.0.0"; framework: str = "ONNX"; task: str = "detection"; gpu_memory_mb: int = 2048
+
+class HotSwapReq(BaseModel):
+    name: str; version: str
+
+@router.post("/api/v1/models/register")
+async def register_new_model(request: ModelRegReq):
+    mv = model_registry.register(request.name, request.version, request.framework, request.task, gpu_memory_mb=request.gpu_memory_mb)
+    return {"model_id": mv.model_id, "status": mv.status}
+
+@router.post("/api/v1/models/hot-swap")
+async def hot_swap_model(request: HotSwapReq):
+    return model_registry.activate(request.name, request.version)
+
+@router.get("/api/v1/models")
+async def list_all_models():
+    return {"models": [m.to_dict() for m in model_registry.list_all()]}
+
+@router.get("/api/v1/models/{name}")
+async def get_model(name: str):
+    return model_registry.compare_versions(name)
+
+@router.post("/api/v1/models/init-demo")
+async def init_models_demo():
+    return {"registered": init_demo_models(), "stats": model_registry.stats()}

@@ -1,10 +1,11 @@
 """Knowledge OS — GraphRAG Engine and Knowledge Extractor."""
+from __future__ import annotations
 
 import hashlib
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,8 @@ class Entity:
         entity_id: str,
         name: str,
         entity_type: str,
-        properties: dict[str, Any] | None = None,
-        source_text: str | None = None,
+        properties: Optional[Dict[str, Any]] = None,
+        source_text: Optional[str] = None,
     ):
         self.entity_id = entity_id
         self.name = name
@@ -70,7 +71,7 @@ class GraphRAGEngine:
     def __init__(self):
         self._knowledge_base: list[dict[str, Any]] = []
 
-    def index_document(self, text: str, metadata: dict[str, Any] | None = None) -> str:
+    def index_document(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """Index a document into the knowledge base."""
         doc_id = hashlib.sha256(text.encode()).hexdigest()[:16]
         self._knowledge_base.append({
@@ -142,11 +143,11 @@ class KnowledgeExtractor:
         self._entities: dict[str, Entity] = {}
         self._relationships: list[dict[str, Any]] = []
 
-    def extract_entities(self, text: str) -> list[Entity]:
+    def extract_entities(self, text: str) -> List[Entity]:
         """Extract named entities from text using simulated NLP."""
         # Simulated entity extraction
         words = text.split()
-        entities: list[Entity] = []
+        entities: List[Entity] = []
 
         common_entities = {
             "beijing": ("LOC", "Beijing"),
@@ -188,10 +189,10 @@ class KnowledgeExtractor:
         logger.info("Extracted %d entities from text (%d chars)", len(entities), len(text))
         return entities
 
-    def get_entity(self, entity_id: str) -> Entity | None:
+    def get_entity(self, entity_id: str) -> Optional[Entity]:
         return self._entities.get(entity_id)
 
-    def list_entities(self, entity_type: str | None = None) -> list[Entity]:
+    def list_entities(self, entity_type: Optional[str] = None) -> List[Entity]:
         entities = list(self._entities.values())
         if entity_type:
             entities = [e for e in entities if e.entity_type == entity_type]

@@ -1,12 +1,13 @@
 """Knowledge Service API Routes."""
 
 import logging
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from knowledge_service.core.service import graphrag_engine, knowledge_extractor
+from knowledge_service.core.service import graphrag_engine as legacy_engine, knowledge_extractor
+from knowledge_service.core.graphrag import GraphRAGEngine, graphrag_engine
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class ExtractEntitiesRequest(BaseModel):
 
 class IndexDocumentRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=50000)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 @router.post("/api/v1/knowledge/graphrag")
@@ -70,7 +71,7 @@ async def get_entity(entity_id: str):
 
 
 @router.get("/api/v1/knowledge/entities")
-async def list_entities(entity_type: str | None = None):
+async def list_entities(entity_type: Optional[str] = None):
     """List all extracted entities, optionally filtered by type."""
     entities = knowledge_extractor.list_entities(entity_type=entity_type)
     return {"status": "ok", "data": [e.to_dict() for e in entities]}
@@ -108,3 +109,47 @@ async def index_document(request: IndexDocumentRequest):
     except Exception as e:
         logger.exception("Document indexing failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== GraphRAG Triple Engine =====
+from knowledge_service.core.graphrag import graphrag_engine as grag
+
+class LoadRequest(BaseModel):
+    entities: list = []
+    edges: list = []
+
+@router.post("/api/v1/knowledge/graphrag/load")
+async def graphrag_load(request: LoadRequest):
+    """Load entities and edges into the GraphRAG engine."""
+    grag.load_data(request.entities, request.edges)
+    return grag.stats()
+
+@router.post("/api/v1/knowledge/graphrag/query")
+async def graphrag_query(request: GraphRAGRequest):
+    """Query the GraphRAG engine: vector + graph + LLM fusion."""
+    return grag.query(request.query, request.top_k)
+
+@router.get("/api/v1/knowledge/graphrag/query")
+async def graphrag_quick_query(q: str = ""):
+    """Quick GraphRAG query via GET."""
+    if not q: return {"error": "q parameter required"}
+    return grag.query(q, top_k=5)
+
+@router.get("/api/v1/knowledge/graphrag/stats")
+async def graphrag_stats():
+    """Get GraphRAG engine statistics."""
+    return grag.stats()
+
+@router.post("/api/v1/knowledge/graphrag/init")
+async def graphrag_init():
+    """Auto-load entities and edges from knowledge graph API."""
+    import requests
+    try:
+        entities_r = requests.get("http://localhost:8093/api/v1/knowledge/entities", timeout=5)
+        graph_r = requests.get("http://localhost:8093/api/v1/knowledge/graph", timeout=5)
+        entities = entities_r.json().get("entities", [])
+        edges = graph_r.json().get("edges", [])
+        grag.load_data(entities, edges)
+        return {"loaded": len(entities), "edges": len(edges), "stats": grag.stats()}
+    except Exception as e:
+        return {"error": str(e)}

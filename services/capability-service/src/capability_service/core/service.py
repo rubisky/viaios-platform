@@ -1,10 +1,11 @@
 """Capability OS Marketplace — Capability Registry and Model Mesh Router."""
+from __future__ import annotations
 
 import hashlib
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,9 @@ class Capability:
         version: str,
         endpoint: str,
         provider: str,
-        input_schema: dict[str, Any] | None = None,
-        output_schema: dict[str, Any] | None = None,
-        tags: list[str] | None = None,
+        input_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
     ):
         self.name = name
         self.description = description
@@ -62,9 +63,9 @@ class CapabilityRegistry:
         version: str,
         endpoint: str,
         provider: str,
-        input_schema: dict[str, Any] | None = None,
-        output_schema: dict[str, Any] | None = None,
-        tags: list[str] | None = None,
+        input_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
     ) -> Capability:
         if name in self._capabilities:
             raise ValueError(f"Capability already registered: {name}")
@@ -83,13 +84,13 @@ class CapabilityRegistry:
         logger.info("Registered capability: %s v%s", name, version)
         return cap
 
-    def list(self, tag: str | None = None) -> list[Capability]:
+    def list(self, tag: Optional[str] = None) -> list[Capability]:
         capabilities = list(self._capabilities.values())
         if tag:
             capabilities = [c for c in capabilities if tag in c.tags]
         return capabilities
 
-    def get(self, name: str) -> Capability | None:
+    def get(self, name: str) -> Optional[Capability]:
         return self._capabilities.get(name)
 
     def invoke(self, name: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -130,10 +131,10 @@ class ModelMeshRouter:
     def select_model(
         self,
         task_type: str = "text",
-        preferred_provider: str | None = None,
+        preferred_provider: Optional[str] = None,
         max_cost: str = "medium",
         max_latency: str = "medium",
-    ) -> dict[str, str] | None:
+    ) -> Optional[Dict[str, str]]:
         """Select the best model based on constraints."""
         candidates = [m for m in self._models if m["type"] == task_type]
 

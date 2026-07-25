@@ -1,25 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Tag, Button, Typography, Spin, message, Row, Col, Space, Divider, Progress, Empty } from 'antd';
-import { ArrowLeftOutlined, PlayCircleOutlined, PauseCircleOutlined, CameraOutlined, ReloadOutlined, AlertOutlined, ControlOutlined, AimOutlined } from '@ant-design/icons';
-import { apiGet } from '../../api/client';
+import { Card, Tag, Button, Typography, Spin, Row, Col, Space, Empty, message, Badge, Progress } from 'antd';
+import { ArrowLeftOutlined, PlayCircleOutlined, PauseCircleOutlined, CameraOutlined, AlertOutlined, VideoCameraOutlined, CaretUpOutlined, CaretDownOutlined, CaretLeftOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { apiGet, apiPost } from '../../api/client';
 import VideoPlayer from '../../components/VideoPlayer';
 
 const { Title, Text } = Typography;
 
-interface Camera {
-  id: string; name: string; location?: string; protocol?: string;
-  ipAddress?: string; streamUrl?: string;
-  status: string; resolution?: string; fps?: number;
-}
-
-interface AnalysisEvent {
-  timestamp: string; type: string; label: string; confidence: number; bbox?: number[];
-}
-
-interface Snapshot {
-  image_url: string; timestamp: string; resolution: string;
-}
+interface Camera { id: string; name: string; location?: string; protocol?: string;
+  ipAddress?: string; streamUrl?: string; status: string; resolution?: string; fps?: number; }
+interface SnapshotItem { image_url: string; timestamp: string; camera_name?: string; }
+interface DetectionEvent { time: string; type: string; label: string; confidence: number; }
 
 const CameraDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,219 +18,177 @@ const CameraDetail: React.FC = () => {
   const [camera, setCamera] = useState<Camera | null>(null);
   const [loading, setLoading] = useState(true);
   const [streaming, setStreaming] = useState(false);
-  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
-  const [events, setEvents] = useState<AnalysisEvent[]>([]);
-  const [cpuUsage, setCpuUsage] = useState(0);
+  const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
+  const [detections, setDetections] = useState<DetectionEvent[]>([]);
+  const [recording, setRecording] = useState(false);
+  const [recordTime, setRecordTime] = useState(0);
+  const [cpuUsage] = useState(12);
 
   const fetchCamera = useCallback(async () => {
     if (!id) return;
-    try {
-      const cam = await apiGet<Camera>(`/api/v1/cameras/${id}`);
-      setCamera(cam);
-    } catch { message.error('加载摄像头失败'); }
+    try { setCamera(await apiGet<Camera>(`/api/v1/cameras/${id}`)); } catch {}
     setLoading(false);
   }, [id]);
 
-  useEffect(() => { fetchCamera(); }, [fetchCamera]);
-
-  // Fetch AI analysis events
-  const fetchAnalysis = async () => {
-    if (!id) return;
-    try {
-      const r = await apiGet<any>(`/api/v1/analysis/events?camera_id=${id}`);
-      setEvents(Array.isArray(r) ? r : r?.events || []);
-    } catch { /* analysis not available */ }
-  };
-
-  // Fetch snapshots
   const fetchSnapshots = async () => {
     if (!id) return;
-    try {
-      const r = await apiGet<any>(`/api/v1/cameras/${id}/snapshots`);
-      setSnapshots(Array.isArray(r) ? r : r?.snapshots || []);
-    } catch { /* no snapshots yet */ }
+    try { const r = await apiGet<any>(`/api/v1/video/snapshots/${id}`); setSnapshots(Array.isArray(r?.snapshots) ? r.snapshots : []); } catch {}
   };
 
-  useEffect(() => { fetchAnalysis(); fetchSnapshots(); }, [id]);
+  useEffect(() => { fetchCamera(); fetchSnapshots(); }, [id]);
+
+  // 模拟AI检测事件
+  useEffect(() => {
+    if (!streaming) return;
+    const types = [{ type: '人员', label: '人员检测' }, { type: '车辆', label: '车辆检测' }, { type: '行为', label: '异常行为' }];
+    const t = setInterval(() => {
+      const d = types[Math.floor(Math.random() * 3)];
+      setDetections(prev => [{ time: new Date().toLocaleTimeString(), ...d, confidence: Math.round(Math.random() * 20 + 80) }, ...prev].slice(0, 20));
+    }, 3000);
+    return () => clearInterval(t);
+  }, [streaming]);
+
+  // 录像计时
+  useEffect(() => {
+    if (!recording) return;
+    const t = setInterval(() => setRecordTime(prev => prev + 1), 1000);
+    return () => clearInterval(t);
+  }, [recording]);
 
   const startStream = () => setStreaming(true);
-  const stopStream = () => setStreaming(false);
+  const stopStream = () => { setStreaming(false); setRecording(false); setRecordTime(0); };
 
   const takeSnapshot = async () => {
     if (!id) return;
     try {
-      const r = await apiGet<any>(`/api/v1/cameras/${id}/snapshot`);
-      setSnapshots(prev => [{ image_url: r?.image_url || `/snapshots/cam_${id}.jpg`, timestamp: r?.timestamp || new Date().toISOString(), resolution: r?.resolution || camera?.resolution || '1920x1080' }, ...prev]);
+      const r = await apiPost<any>(`/api/v1/video/snapshot/${id}`);
+      setSnapshots(prev => [{ image_url: r?.image_url || `/snapshots/${id}.jpg`, timestamp: r?.timestamp || new Date().toISOString() }, ...prev].slice(0, 40));
       message.success('截图已保存');
     } catch { message.error('截图失败'); }
   };
 
-  // Simulate CPU usage for demo
-  useEffect(() => {
-    if (streaming) {
-      const t = setInterval(() => setCpuUsage(Math.floor(Math.random() * 30 + 15)), 2000);
-      return () => clearInterval(t);
-    }
-    setCpuUsage(0);
-  }, [streaming]);
+  const toggleRecording = () => setRecording(!recording);
+
+  const ptzCmd = (cmd: string) => message.info(`PTZ: ${cmd}`);
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!camera) return <Empty description="摄像头不存在" />;
-
-  const statusColor = camera.status === 'online' ? 'green' : camera.status === 'offline' ? 'red' : 'orange';
 
   return (
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/cameras')}>返回</Button>
-          <Title level={3} style={{ color: '#e0e0e0', margin: 0 }}>{camera.name}</Title>
-          <Tag color={statusColor}>{camera.status === 'online' ? '在线' : camera.status}</Tag>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/cameras')}>返回列表</Button>
+          <Title level={3} style={{ color: '#e0e0e0', margin: 0 }}><VideoCameraOutlined /> {camera.name}</Title>
+          <Badge status={camera.status === 'online' ? 'processing' : 'error'} text={camera.status === 'online' ? '在线' : '离线'} />
         </Space>
-        <Space>
-          <Text style={{ color: '#a0a0a0' }}>{camera.location}</Text>
-          <Text style={{ color: '#64748b' }}>{camera.protocol?.toUpperCase()} | {camera.resolution} | {camera.fps}fps</Text>
-        </Space>
+        <Text style={{ color: '#a0a0a0' }}>{camera.location} · {camera.protocol?.toUpperCase()} · {camera.resolution}</Text>
       </div>
 
       <Row gutter={[16, 16]}>
-        {/* Video Player */}
+        {/* 主视频区 */}
         <Col xs={24} lg={16}>
-          <Card
-            title={<span style={{ color: '#e0e0e0' }}>实时视频</span>}
-            extra={
-              <Space>
-                {!streaming ? (
-                  <Button type="primary" icon={<PlayCircleOutlined />} onClick={startStream}>开始推流</Button>
-                ) : (
-                  <Button danger icon={<PauseCircleOutlined />} onClick={stopStream}>停止</Button>
-                )}
-                <Button icon={<CameraOutlined />} onClick={takeSnapshot} disabled={!streaming}>截图</Button>
-                <Button icon={<ReloadOutlined />} onClick={fetchCamera}>刷新</Button>
-              </Space>
-            }
-            style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8 }}
-            bodyStyle={{ padding: 0 }}
-          >
-            <div style={{ position: 'relative', background: '#000', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {!streaming ? (
-                <div style={{ textAlign: 'center', color: '#64748b', padding: 40 }}>
-                  <PlayCircleOutlined style={{ fontSize: 48 }} />
-                  <p>点击"开始推流"查看实时视频</p>
-                </div>
-              ) : (
-                <VideoPlayer
-                  streamUrl="/live/placeholder.m3u8"
-                  autoPlay
-                  muted
+          <Card style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8 }} bodyStyle={{ padding: 0 }}>
+            {!streaming ? (
+              <div style={{ textAlign: 'center', padding: 80, color: '#64748b' }}>
+                <PlayCircleOutlined style={{ fontSize: 48 }} />
+                <p style={{ marginTop: 12 }}>点击下方按钮开始实时监控</p>
+                <Button type="primary" size="large" icon={<PlayCircleOutlined />} onClick={startStream}>开始推流</Button>
+              </div>
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <VideoPlayer streamUrl="/live/placeholder.m3u8" autoPlay muted height={420}
                   analysisBoxes={[
-                    { x: 50, y: 80, w: 120, h: 150, label: 'Person', confidence: 0.95 },
-                    { x: 200, y: 100, w: 80, h: 100, label: 'Vehicle', confidence: 0.88 },
-                  ]}
-                  onSnapshot={(url) => setSnapshots(prev => [{ image_url: url, timestamp: new Date().toISOString(), resolution: camera.resolution || '1920x1080' }, ...prev])}
-                />
-              )}
-              {/* AI detection overlay */}
-              {streaming && events.length > 0 && (
-                <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', padding: '4px 12px', borderRadius: 4, fontSize: 11, color: '#faad14' }}>
-                  <AlertOutlined /> AI 检测中
+                    { x: 50, y: 80, w: 100, h: 140, label: '人员', confidence: 0.95 },
+                    { x: 180, y: 100, w: 70, h: 90, label: '车辆', confidence: 0.88 },
+                  ]} />
+                {/* 状态覆盖层 */}
+                <div style={{ position: 'absolute', top: 8, left: 8, right: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <Space>
+                    <Badge status="processing" />
+                    <Text style={{ color: '#52c41a', fontSize: 11, background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: 4 }}>LIVE</Text>
+                    <Text style={{ color: '#fff', fontSize: 11, background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: 4 }}>{camera.fps}fps</Text>
+                  </Space>
+                  {recording && (
+                    <Space>
+                      <Badge status="error" />
+                      <Text style={{ color: '#ff4d4f', fontSize: 11, background: 'rgba(0,0,0,0.5)', padding: '2px 8px', borderRadius: 4 }}>
+                        REC {Math.floor(recordTime/60)}:{String(recordTime%60).padStart(2,'0')}
+                      </Text>
+                    </Space>
+                  )}
                 </div>
-              )}
-            </div>
-            {/* Stream stats */}
-            {streaming && (
-              <div style={{ padding: '8px 16px', background: '#0f0f23', display: 'flex', gap: 24, fontSize: 12, color: '#a0a0a0' }}>
-                <span>CPU: <Progress percent={cpuUsage} size="small" style={{ width: 80 }} strokeColor="#52c41a" /></span>
-                <span>带宽: {(Math.random() * 4 + 1).toFixed(1)} Mbps</span>
-                <span>延迟: {(Math.random() * 200 + 50).toFixed(0)}ms</span>
-                <span>丢包: {(Math.random() * 0.5).toFixed(1)}%</span>
               </div>
             )}
           </Card>
-        </Col>
 
-        {/* Sidebar: Camera Info + Controls */}
-        <Col xs={24} lg={8}>
-          {/* Camera Info */}
-          <Card title={<span style={{ color: '#e0e0e0' }}>设备信息</span>}
-            style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8, marginBottom: 16 }}>
-            <Descriptions column={1} size="small" labelStyle={{ color: '#a0a0a0' }} contentStyle={{ color: '#e0e0e0' }}>
-              <Descriptions.Item label="ID">{camera.id}</Descriptions.Item>
-              <Descriptions.Item label="协议">{camera.protocol?.toUpperCase()}</Descriptions.Item>
-              <Descriptions.Item label="IP 地址">{camera.ipAddress || '—'}</Descriptions.Item>
-              <Descriptions.Item label="分辨率">{camera.resolution || '—'}</Descriptions.Item>
-              <Descriptions.Item label="帧率">{camera.fps ? `${camera.fps} fps` : '—'}</Descriptions.Item>
-              <Descriptions.Item label="推流地址">{camera.streamUrl || '—'}</Descriptions.Item>
-              <Descriptions.Item label="状态"><Tag color={statusColor}>{camera.status === 'online' ? '在线' : camera.status}</Tag></Descriptions.Item>
-            </Descriptions>
-          </Card>
-
-          {/* PTZ Controls */}
-          <Card title={<span style={{ color: '#e0e0e0' }}><ControlOutlined /> 云台控制</span>}
-            style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8, marginBottom: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, textAlign: 'center' }}>
-              <div />
-              <Button icon={<AimOutlined style={{ transform: 'rotate(-90deg)' }} />} disabled={!streaming}>上</Button>
-              <div />
-              <Button icon={<AimOutlined style={{ transform: 'rotate(180deg)' }} />} disabled={!streaming}>左</Button>
-              <Button disabled={!streaming}>归位</Button>
-              <Button icon={<AimOutlined />} disabled={!streaming}>右</Button>
-              <div />
-              <Button icon={<AimOutlined style={{ transform: 'rotate(90deg)' }} />} disabled={!streaming}>下</Button>
-              <div />
-            </div>
-            <Divider style={{ margin: '12px 0', borderColor: '#2a2a4a' }} />
-            <Space>
-              <Button size="small" disabled={!streaming}>放大</Button>
-              <Button size="small" disabled={!streaming}>缩小</Button>
-              <Button size="small" disabled={!streaming}>聚焦</Button>
-            </Space>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Tabs: Analysis Timeline + Snapshots */}
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={12}>
-          <Card title={<span style={{ color: '#e0e0e0' }}><AlertOutlined /> AI 分析结果</span>}
-            style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8 }}>
-            {events.length > 0 ? events.map((e, i) => (
-              <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #2a2a4a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <Tag color={e.confidence > 0.9 ? 'green' : e.confidence > 0.7 ? 'orange' : 'red'}>{e.label}</Tag>
-                  <Text style={{ color: '#a0a0a0', fontSize: 12 }}>{e.type}</Text>
-                </div>
+          {/* 控制栏 */}
+          <Card size="small" style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8, marginTop: 12 }}>
+            <Row gutter={16} align="middle">
+              <Col span={8}>
                 <Space>
-                  <Text style={{ color: '#64748b', fontSize: 11 }}>{new Date(e.timestamp).toLocaleTimeString()}</Text>
-                  <Tag>{`${(e.confidence * 100).toFixed(0)}%`}</Tag>
+                  <Button size="small" danger={streaming} icon={streaming ? <PauseCircleOutlined /> : <PlayCircleOutlined />} onClick={streaming ? stopStream : startStream}>
+                    {streaming ? '停止' : '推流'}
+                  </Button>
+                  <Button size="small" icon={<CameraOutlined />} onClick={takeSnapshot} disabled={!streaming}>截图</Button>
+                  <Button size="small" danger={recording} icon={<Badge status="error" />} onClick={toggleRecording} disabled={!streaming}>
+                    {recording ? '停止录像' : '录像'}
+                  </Button>
                 </Space>
-              </div>
-            )) : (
-              <Empty description="暂无AI分析结果" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            )}
+              </Col>
+              <Col span={8}>
+                {/* PTZ */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2, width: 120 }}>
+                  <div /><Button size="small" icon={<CaretUpOutlined />} disabled={!streaming} onClick={() => ptzCmd('上')} /><div />
+                  <Button size="small" icon={<CaretLeftOutlined />} disabled={!streaming} onClick={() => ptzCmd('左')} />
+                  <Button size="small" disabled={!streaming} onClick={() => ptzCmd('归位')}>归</Button>
+                  <Button size="small" icon={<CaretRightOutlined />} disabled={!streaming} onClick={() => ptzCmd('右')} />
+                  <div /><Button size="small" icon={<CaretDownOutlined />} disabled={!streaming} onClick={() => ptzCmd('下')} /><div />
+                </div>
+              </Col>
+              <Col span={8}>
+                <Text style={{ color: '#a0a0a0', fontSize: 11, display: 'block' }}>设备信息</Text>
+                <Text style={{ color: '#e0e0e0', fontSize: 12 }}>{camera.protocol?.toUpperCase()} · {camera.ipAddress || '—'}</Text>
+                <Text style={{ color: '#e0e0e0', fontSize: 12 }}>{camera.resolution} @ {camera.fps}fps</Text>
+                <Text style={{ color: '#64748b', fontSize: 11 }}>CPU: <Progress percent={cpuUsage} size="small" style={{ width: 60, display: 'inline-block' }} /></Text>
+              </Col>
+            </Row>
           </Card>
         </Col>
 
-        <Col xs={24} lg={12}>
-          <Card title={<span style={{ color: '#e0e0e0' }}><CameraOutlined /> 截图库</span>}
+        {/* 右侧面板 */}
+        <Col xs={24} lg={8}>
+          {/* AI检测 */}
+          <Card title={<span style={{ color: '#e0e0e0' }}><AlertOutlined /> AI实时检测</span>}
+            style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8, marginBottom: 16 }}>
+            {streaming && detections.length > 0 ? detections.slice(0, 8).map((d, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #1e293b' }}>
+                <Space size={4}>
+                  <Tag color={d.type === '人员' ? 'blue' : d.type === '车辆' ? 'green' : 'orange'} style={{ fontSize: 10 }}>{d.label}</Tag>
+                  <Text style={{ color: '#64748b', fontSize: 10 }}>{d.time}</Text>
+                </Space>
+                <Tag color={d.confidence > 90 ? 'green' : 'orange'} style={{ fontSize: 10 }}>{d.confidence}%</Tag>
+              </div>
+            )) : <Empty description={streaming ? '等待检测...' : '启动推流后显示'} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+          </Card>
+
+          {/* 截图库 */}
+          <Card title={<span style={{ color: '#e0e0e0' }}><CameraOutlined /> 截图 ({snapshots.length})</span>}
             extra={<Button size="small" icon={<CameraOutlined />} onClick={takeSnapshot} disabled={!streaming}>截图</Button>}
             style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8 }}>
             {snapshots.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
-                {snapshots.map((s, i) => (
-                  <div key={i} style={{ position: 'relative', borderRadius: 4, overflow: 'hidden', border: '1px solid #2a2a4a' }}>
-                    <img src={s.image_url} alt={`截图 ${i + 1}`} style={{ width: '100%', height: 80, objectFit: 'cover', background: '#000' }}
-                      onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22><rect fill=%22%23333%22 width=%22160%22 height=%2290%22/><text fill=%22%23666%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2212%22>预览</text></svg>'; }} />
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', padding: '2px 4px', fontSize: 9, color: '#a0a0a0', textAlign: 'center' }}>
-                      {new Date(s.timestamp).toLocaleTimeString()}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
+                {snapshots.slice(0, 12).map((s, i) => (
+                  <div key={i} style={{ aspectRatio: '16/9', background: '#1a1a2e', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    <CameraOutlined style={{ fontSize: 16, color: '#64748b' }} />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', padding: '1px 4px', fontSize: 8, color: '#a0a0a0', textAlign: 'center' }}>
+                      {new Date(s.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
                     </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <Empty description="暂无截图" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            )}
+            ) : <Empty description="暂无截图" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           </Card>
         </Col>
       </Row>
