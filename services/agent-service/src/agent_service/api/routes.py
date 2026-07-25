@@ -684,10 +684,15 @@ from agent_service.core.search_complete import query_suggester, image_search, at
 async def search_suggest(prefix: str = "", modality: str = "combined"):
     return {"suggestions": query_suggester.suggest(prefix, modality)}
 
+class ImageSearchRequest(BaseModel):
+    image_data: str = ""
+    top_k: int = 20
+    modality: str = "person"
+
 @router.post("/api/v1/search/image")
-async def search_image(image_data: str = "", top_k: int = 20, modality: str = "person"):
+async def search_image(req: ImageSearchRequest):
     """Search by image (base64 encoded or URL)."""
-    return image_search.search_by_image(image_data, top_k, modality)
+    return image_search.search_by_image(req.image_data, req.top_k, req.modality)
 
 @router.get("/api/v1/search/filters/{modality}")
 async def search_filters(modality: str = "person"):
@@ -781,11 +786,16 @@ async def search_compare(target_ids: str = ""):
 
 from agent_service.core.search_engine_v2 import image_comparator, TARGET_LIBRARY
 
+class SearchV2ImageRequest(BaseModel):
+    image_data: str = ""
+    category: str = "嫌疑人员"
+    top_k: int = 10
+
 @router.post("/api/v1/search/v2/image")
-async def search_v2_image(image_data: str = "", category: str = "嫌疑人员", top_k: int = 10):
+async def search_v2_image(req: SearchV2ImageRequest):
     """V2: 上传图片→提取特征→比对库检索→返回匹配结果"""
-    if not image_data: raise HTTPException(400, "请提供图片数据")
-    return image_comparator.compare_image(image_data, category, top_k)
+    if not req.image_data: raise HTTPException(400, "请提供图片数据")
+    return image_comparator.compare_image(req.image_data, req.category, req.top_k)
 
 @router.get("/api/v1/search/v2/library")
 async def search_v2_library():
