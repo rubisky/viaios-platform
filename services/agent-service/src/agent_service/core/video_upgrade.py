@@ -1,5 +1,6 @@
 """Video Access Production Upgrade — Recording, Stream Health, PTZ."""
 import logging
+import os
 import time
 import uuid
 from datetime import datetime, timezone
@@ -152,9 +153,11 @@ class PTZController:
 ptz_controller = PTZController()
 
 
-# Initialize demo data
-for i in range(1, 5):
-    stream_health.update(f"cam-{i:03d}", fps=15 + i, bitrate_kbps=2048 + i * 100,
-                         latency_ms=30 + i * 5, packet_loss_percent=i * 0.1)
-    recording_manager.start_recording(f"cam-{i:03d}", 300)
-    ptz_controller.save_preset(f"cam-{i:03d}", f"Gate {i}", pan=0, tilt=i * 15, zoom=1.0)
+# Initialize demo data (only in demo mode)
+if os.getenv("VIAIOS_DEMO_MODE", "").lower() in ("1", "true", "yes"):
+    for i in range(1, 5):
+        stream_health.update(f"cam-{i:03d}", fps=15 + i, bitrate_kbps=2048 + i * 100,
+                             latency_ms=30 + i * 5, packet_loss_percent=i * 0.1)
+        recording_manager.start_recording(f"cam-{i:03d}", 300)
+        ptz_controller.save_preset(f"cam-{i:03d}", f"Gate {i}", pan=0, tilt=i * 15, zoom=1.0)
+    logger.info("Demo video data initialized (VIAIOS_DEMO_MODE=1)")

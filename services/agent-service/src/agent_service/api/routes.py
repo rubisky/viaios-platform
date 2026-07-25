@@ -1,5 +1,6 @@
 """Agent Service API Routes — multi-agent orchestration + LLM integration."""
 import logging
+import os
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -190,9 +191,12 @@ async def list_orchestrations():
 @router.post("/api/v1/agents/llm/chat")
 async def llm_chat(request: LLMChatRequest):
     """Send a chat completion request to the configured LLM provider."""
+    deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
+    if not deepseek_api_key:
+        raise HTTPException(500, "DEEPSEEK_API_KEY not configured")
     provider = get_llm_provider(
         provider_type=request.provider,
-        api_key="sk-009011744e2d42969dcc376a73e60fe1",
+        api_key=deepseek_api_key,
     )
     messages = [LLMMessage(role=m["role"], content=m["content"]) for m in request.messages]
     response = await provider.chat(messages, temperature=request.temperature, max_tokens=request.max_tokens)

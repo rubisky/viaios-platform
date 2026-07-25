@@ -11,7 +11,7 @@ from .production_upgrade import db_store, health_monitor
 
 logger = logging.getLogger(__name__)
 
-# ===== 比对库 =====
+# ===== 比对库 (Demo data — replace with DB query in production) =====
 
 TARGET_LIBRARY = {
     "嫌疑人员": [
@@ -76,7 +76,7 @@ class ImageComparator:
 
         # 从图片中提取视觉特征（模拟）
         image_hash = hashlib.md5(uploaded_image_data.encode()[:200]).hexdigest()
-        random.seed(int(image_hash[:8], 16))
+        image_rng = random.Random(int(image_hash[:8], 16))
 
         # 提取"检测到的属性"
         detected_attrs = self._detect_attributes_from_image(uploaded_image_data, category)
@@ -127,31 +127,31 @@ class ImageComparator:
     def _detect_attributes_from_image(self, image_data: str, category: str) -> Dict:
         """从图片中检测属性（模拟AI检测）."""
         seed = hashlib.md5(image_data.encode()[:100]).hexdigest()
-        random.seed(int(seed[:8], 16))
+        rng = random.Random(int(seed[:8], 16))
 
         if "人员" in category or "嫌疑" in category:
             colors = ["红色","黑色","白色","蓝色","灰色","黄色"]
             clothes = ["夹克","外套","衬衫","T恤","制服","马甲"]
             pants = ["长裤","牛仔裤","西裤","短裤"]
             return {
-                "检测上衣": f"{random.choice(colors)}{random.choice(clothes)}",
-                "检测下衣": random.choice(pants),
-                "检测体型": random.choice(["中等","瘦","健壮"]),
-                "检测性别": random.choice(["男","女"]),
-                "估计身高": f"{random.randint(160,185)}cm",
+                "检测上衣": f"{rng.choice(colors)}{rng.choice(clothes)}",
+                "检测下衣": rng.choice(pants),
+                "检测体型": rng.choice(["中等","瘦","健壮"]),
+                "检测性别": rng.choice(["男","女"]),
+                "估计身高": f"{rng.randint(160,185)}cm",
             }
         else:
             brands = ["丰田","本田","宝马","奥迪","五菱","大众"]
             colors = ["白色","黑色","红色","银色","蓝色"]
             return {
-                "检测颜色": random.choice(colors),
-                "检测车型": random.choice(["轿车","SUV","面包车","卡车"]),
-                "估计年份": f"{random.randint(2020,2024)}",
+                "检测颜色": rng.choice(colors),
+                "检测车型": rng.choice(["轿车","SUV","面包车","卡车"]),
+                "估计年份": f"{rng.randint(2020,2024)}",
             }
 
     def _visual_similarity(self, detected: Dict, target: Dict, img_hash: str, target_id: str) -> float:
         """计算视觉相似度（模拟但有区分度）."""
-        random.seed(int(img_hash[:8], 16) + hash(target_id) % 10000)
+        rng = random.Random(int(img_hash[:8], 16) + hash(target_id) % 10000)
 
         # 颜色匹配检查
         color_match = False
@@ -162,7 +162,7 @@ class ImageComparator:
                 if dval and tval and (dval in tval or tval in dval):
                     color_match = True
 
-        base_score = random.uniform(40, 85)
+        base_score = rng.uniform(40, 85)
         if color_match: base_score += 10
         return min(base_score, 98)
 

@@ -1,4 +1,6 @@
-"""Alarm Production Upgrade — Kafka consumption, auto-case, notification chain."""
+"""Alarm Production Upgrade — alarm processing, auto-case creation, notification chain.
+   Integration point: receives alarms via POST /api/v1/alarms/simulate or direct process_alarm() call.
+   For Kafka integration, deploy viaios-kafka-bridge to consume from alarm topic."""
 import json
 import logging
 import random

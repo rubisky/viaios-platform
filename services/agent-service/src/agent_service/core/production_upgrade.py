@@ -18,9 +18,11 @@ logger = logging.getLogger(__name__)
 class SQLiteStore:
     """Persistent key-value store with TTL support."""
 
-    def __init__(self, db_path: str = "/opt/viaios/data/production.db"):
-        self._db_path = db_path
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    def __init__(self, db_path: str = ""):
+        if not db_path:
+            db_path = os.getenv("VIAIOS_DB_PATH", os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "production.db"))
+        self._db_path = os.path.abspath(db_path)
+        os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
         self._local = threading.local()
         self._init_db()
 
