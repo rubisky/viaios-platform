@@ -46,6 +46,7 @@ const Dashboard: React.FC = () => {
     // Fetch system metrics + production health
     try { const m = await apiGet<SysMetrics>('/api/v1/system/metrics'); setMetrics(m); } catch {}
     try { const h = await apiGet<any>('/api/v1/prod/health'); if (h?.score) setMetrics(prev => ({ ...prev, health_score: h.score.score })); } catch {}
+    try { const a = await apiGet<any>('/api/v1/analytics/summary'); if (a) setStats(prev => ({ ...prev, analytics: a })); } catch {}
     setLoading(false);
   };
 

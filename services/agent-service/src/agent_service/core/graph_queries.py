@@ -84,21 +84,34 @@ class GraphQueryBuilder:
         }
 
     def execute(self, query_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a named query template with parameters."""
+        """Execute a named query template — AGE then fallback demo."""
         template = QUERY_TEMPLATES.get(query_name)
         if not template:
             return {"error": f"Unknown query: {query_name}"}
 
-        # In production: execute against AGE via psycopg2 or Neo4j driver
-        # For now: return demo data
+        # Format the Cypher query
+        safe_params = {k: v for k, v in params.items() if k in template}
+        cypher = template.format(**safe_params, **{k: params.get(k, 100) for k in ["limit", "max_depth"] if k not in safe_params})
+
+        # Try AGE database first
+        try:
+            from .age_client import age_client
+            result = age_client.query(cypher, safe_params)
+            if result and (result.get("nodes") or result.get("edges")):
+                result["query"] = query_name
+                result["source"] = "age"
+                return result
+        except Exception:
+            pass
+
+        # Fallback: demo data
         cache_key = f"{query_name}:{str(sorted(params.items()))}"
         if cache_key in self._query_cache:
             return self._query_cache[cache_key]
 
         result = {
-            "query": query_name,
-            "params": params,
-            "cypher": template.format(**{k: v for k, v in params.items() if k in template}),
+            "query": query_name, "params": params, "source": "mock",
+            "cypher": cypher,
             "results": self._demo_data.get(query_name, []),
         }
         self._query_cache[cache_key] = result

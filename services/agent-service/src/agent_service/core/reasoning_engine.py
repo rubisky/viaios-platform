@@ -50,10 +50,19 @@ class ReasoningResult:
     confidence: float = 0.0
     facts_used: int = 0
     hypotheses_evaluated: int = 0
+    hypotheses: List = field(default_factory=list)
+    llm_model: str = ""
+    source: str = "rule"
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
-        return {k: v for k, v in self.__dict__.items()}
+        d = {}
+        for k, v in self.__dict__.items():
+            if isinstance(v, list) and v and hasattr(v[0], '__dict__'):
+                d[k] = [x.__dict__ if hasattr(x, '__dict__') else x for x in v]
+            else:
+                d[k] = v
+        return d
 
 
 class ReasoningEngine:
@@ -86,7 +95,74 @@ class ReasoningEngine:
         return fact
 
     def reason(self, query: str, max_steps: int = 5) -> ReasoningResult:
-        """Execute multi-step reasoning on a query."""
+        """Execute multi-step reasoning — LLM first, rule-based fallback."""
+        # Try LLM reasoning
+        if self.llm:
+            try:
+                return self._llm_reason(query, max_steps)
+            except Exception as e:
+                logger.warning("LLM reasoning failed, falling back to rule-based: %s", e)
+        return self._rule_reason(query, max_steps)
+
+    def _llm_reason(self, query: str, max_steps: int) -> ReasoningResult:
+        """LLM-powered multi-step reasoning with chain-of-thought."""
+        import asyncio, json, re
+        from .llm import LLMMessage
+
+        # Gather relevant facts
+        facts = self._find_relevant(query)
+        facts_text = "\n".join(f"- [{f.source}] {f.statement} (confidence: {f.confidence})" for f in facts[:10])
+
+        prompt = f"""You are an investigative reasoning engine. Analyze the query using available evidence.
+
+QUERY: {query}
+
+EVIDENCE:
+{facts_text}
+
+Think step by step:
+1. What do we know for certain?
+2. What can we hypothesize?
+3. What evidence supports or contradicts each hypothesis?
+4. What conclusions can we draw?
+
+Return a JSON object with:
+- "conclusion": final reasoned conclusion
+- "confidence": 0-1 confidence score
+- "hypotheses": list of {{"statement": "...", "supporting_facts": ["fact_id"], "score": 0-1}}
+- "reasoning_steps": list of step descriptions
+
+Return ONLY the JSON, no other text."""
+
+        loop = asyncio.get_event_loop()
+        response = loop.run_until_complete(
+            self.llm.chat([LLMMessage(role="user", content=prompt)], temperature=0.3, max_tokens=800)
+        )
+        content = response.content
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            hyps = []
+            for h in data.get("hypotheses", []):
+                hyps.append(Hypothesis(
+                    statement=h.get("statement", ""),
+                    supporting_facts=h.get("supporting_facts", []),
+                ))
+            return ReasoningResult(
+                query=query, conclusion=data.get("conclusion", content[:200]),
+                confidence=data.get("confidence", 0.7),
+                steps=[s.get("description", str(s)) for s in data.get("reasoning_steps", [])],
+                hypotheses=hyps,
+                llm_model=response.model, source="llm",
+            )
+        # Fallback: use raw content
+        return ReasoningResult(
+            query=query, conclusion=content[:500], confidence=0.6,
+            steps=["LLM analysis"], source="llm_raw",
+        )
+
+    def _rule_reason(self, query: str, max_steps: int) -> ReasoningResult:
+        """Rule-based reasoning fallback."""
         result = ReasoningResult(query=query)
         relevant_facts = self._find_relevant(query)
 
