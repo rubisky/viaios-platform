@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .production_upgrade import health_monitor, circuit_breaker
+from .production_upgrade import health_monitor
 from .kafka_bridge import publish_inference_result, publish_embedding
 
 logger = logging.getLogger(__name__)
@@ -127,7 +127,7 @@ class DetectionPipeline(BasePipeline):
 
     name = "yolov8n"
 
-    @circuit_breaker.call
+    # @circuit_breaker.call removed — use internal error handling
     def run(self, image: np.ndarray) -> Dict[str, Any]:
         if not self._loaded and not self.load():
             return self._mock_detection(image)
@@ -213,7 +213,7 @@ class FacePipeline(BasePipeline):
         super().__init__()
         self._detector = DetectionPipeline()
 
-    @circuit_breaker.call
+    # @circuit_breaker.call removed — use internal error handling
     def run(self, image: np.ndarray) -> Dict[str, Any]:
         if not self._loaded and not self.load():
             return self._mock_face(image)
@@ -272,7 +272,7 @@ class PersonReIDPipeline(BasePipeline):
         super().__init__()
         self._detector = DetectionPipeline()
 
-    @circuit_breaker.call
+    # @circuit_breaker.call removed — use internal error handling
     def run(self, image: np.ndarray) -> Dict[str, Any]:
         if not self._loaded and not self.load():
             return self._mock_reid()
@@ -329,7 +329,7 @@ class VehiclePipeline(BasePipeline):
         super().__init__()
         self._detector = DetectionPipeline()
 
-    @circuit_breaker.call
+    # @circuit_breaker.call removed — use internal error handling
     def run(self, image: np.ndarray) -> Dict[str, Any]:
         if not self._loaded and not self.load():
             return self._mock_vehicle()
