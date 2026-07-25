@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from .production_upgrade import db_store, health_monitor, retry, circuit_breaker
+from .kafka_bridge import publish_alarm
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,16 @@ class AlarmEngine:
         self._alarm_log.append(alarm_record)
         db_store.set(f"alarm_log:{alarm.get('id', uuid.uuid4().hex[:8])}", alarm_record)
         health_monitor.record("alarms_processed", 1)
+
+        # Publish to Kafka for downstream consumers
+        publish_alarm(
+            alarm_id=alarm.get('id', ''),
+            alarm_type=alarm.get('type', 'unknown'),
+            severity=alarm.get('severity', 'MEDIUM'),
+            camera_id=alarm.get('camera_id', ''),
+            message=alarm.get('message', ''),
+            triggered_rules=triggered_rules,
+        )
 
         return {"alarm": alarm_record, "rules_triggered": len(triggered_rules), "actions": results}
 
