@@ -825,32 +825,30 @@ async def get_enriched_data():
     return data_enricher.get_all_data()
 
 
-# ====== Built-in Demo Agents ======
-
-def _demo_video_analysis(inputs: dict) -> dict:
-    return {"detections": [{"class": "person", "confidence": 0.95, "bbox": [100, 150, 300, 400]}],
-            "summary": f"Analyzed video clip with {inputs.get('duration', 'unknown')}s duration"}
-
-def _demo_target_search(inputs: dict) -> dict:
-    return {"matches": [{"id": "t1", "score": 0.92}, {"id": "t2", "score": 0.87}],
-            "query": inputs.get("query", "")}
-
-def _demo_case_analysis(inputs: dict) -> dict:
-    return {"timeline_events": 5, "key_findings": ["Suspect identified", "Vehicle tracked"],
-            "confidence": 0.88}
-
+# ====== Built-in Agents with Real Handlers ======
 
 @router.post("/api/v1/agents/init-demo")
 async def init_demo_agents():
-    """Register built-in demo agents."""
-    agents = [
-        ("video-agent", "Video Analysis Agent", ["video_analysis"], _demo_video_analysis),
-        ("search-agent", "Target Search Agent", ["target_search"], _demo_target_search),
-        ("case-agent", "Case Analysis Agent", ["case_analysis"], _demo_case_analysis),
+    """Register all 8 built-in agents with real capability handlers."""
+    from agent_service.core.agent_handlers import AGENT_HANDLERS
+
+    agent_defs = [
+        ("video-agent", "Video Analysis Agent", ["video_analysis"], "video-agent"),
+        ("search-agent", "Target Search Agent", ["target_search"], "search-agent"),
+        ("case-agent", "Case Analysis Agent", ["case_analysis"], "case-agent"),
+        ("knowledge-agent", "Knowledge Graph Agent", ["knowledge_graph"], "knowledge-agent"),
+        ("report-agent", "Report Generation Agent", ["report_generation"], "report-agent"),
+        ("alarm-agent", "Alarm Analysis Agent", ["alarm_handling"], "alarm-agent"),
+        ("analysis-agent", "Deep Analysis Agent", ["data_analysis", "trend_prediction"], "analysis-agent"),
+        ("operation-agent", "Operations Agent", ["health_check", "metrics", "log_query"], "operation-agent"),
     ]
+
     registered = []
-    for name, desc, caps, handler in agents:
-        info = AgentInfo(name=name, description=desc, capabilities=caps, handler=handler)
-        aid = agent_registry.register(info)
-        registered.append(aid)
-    return {"registered": registered}
+    for name, desc, caps, handler_key in agent_defs:
+        handler = AGENT_HANDLERS.get(handler_key)
+        if handler:
+            info = AgentInfo(name=name, description=desc, capabilities=caps, handler=handler)
+            aid = agent_registry.register(info)
+            registered.append(aid)
+
+    return {"registered": registered, "count": len(registered)}
