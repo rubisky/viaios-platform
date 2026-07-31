@@ -281,4 +281,8 @@ Return ONLY the JSON, no other text."""
         self._init_demo_facts()
 
 
-reasoning_engine = ReasoningEngine()
+try:
+    from .llm import get_llm_provider
+    reasoning_engine = ReasoningEngine(llm_provider=get_llm_provider())
+except Exception:
+    reasoning_engine = ReasoningEngine()

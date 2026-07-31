@@ -1,5 +1,6 @@
 """Agent Service — FastAPI Application Entry Point."""
 
+import json
 import logging
 
 import uvicorn
@@ -8,7 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agent_service.api.routes import router
 from agent_service.core.logging_config import setup_logging, CorrelationIdMiddleware
-from agent_service.core.prometheus_metrics import router as metrics_router
+try:
+    from agent_service.core.prometheus_metrics import router as metrics_router
+except ImportError:
+    metrics_router = None
 from agent_service.config import settings
 
 setup_logging(level=settings.log_level, fmt="json")
@@ -32,8 +36,38 @@ app.add_middleware(
 )
 
 app.include_router(router)
-app.include_router(metrics_router)
+if metrics_router:
+    app.include_router(metrics_router)
 
+
+@app.get("/api/system/services")
+async def all_services_health():
+    """Return health status of all 16 VIAIOS services."""
+    import urllib.request
+    SERVICES = {
+        8080: "Gateway", 8081: "Control Center", 8082: "AI Kernel",
+        8083: "Camera", 8084: "Analysis", 8085: "Search",
+        8086: "Case", 8087: "Report", 8088: "Alarm",
+        8089: "Workflow", 8091: "Agent (Java)", 8092: "Capability (Java)",
+        8093: "Knowledge (Java)", 8191: "Agent (Python)", 8192: "Capability (Python)",
+        8193: "Knowledge (Python)",
+    }
+    result = []
+    for port, name in SERVICES.items():
+        if port == 8191:
+            result.append({"name": name, "port": port, "status": "UP", "group": "Python"})
+            continue
+        try:
+            req = urllib.request.Request(f"http://localhost:{port}/actuator/health", method="GET")
+            resp = urllib.request.urlopen(req, timeout=5)
+            data = json.loads(resp.read().decode())
+            result.append({"name": name, "port": port, "status": data.get("status", "UP"),
+                          "group": "Python" if port >= 8191 else "Java"})
+        except Exception:
+            result.append({"name": name, "port": port, "status": "DOWN",
+                          "group": "Python" if port >= 8191 else "Java"})
+    return {"services": result, "total": len(result),
+            "up": sum(1 for s in result if s["status"] == "UP")}
 
 @app.get("/health")
 @app.get("/actuator/health")
@@ -63,15 +97,17 @@ async def startup():
         milvus_client.create_collections()
     except Exception:
         pass
-    # Init Kafka consumers for alarm handling
-    try:
-        from agent_service.core.kafka_bridge import start_alarm_consumer
-        async def _alarm_handler(topic, key, value):
-            from agent_service.core.alarm_upgrade import alarm_engine
-            alarm_engine.process_alarm(value)
-        start_alarm_consumer(_alarm_handler)
-    except Exception:
-        pass
+    # Init Kafka consumers (only if Kafka is available)
+    import os as _os
+    if _os.getenv("KAFKA_ENABLED", "true").lower() not in ("0", "false", "no"):
+        try:
+            from agent_service.core.kafka_bridge import start_alarm_consumer
+            async def _alarm_handler(topic, key, value):
+                from agent_service.core.alarm_upgrade import alarm_engine
+                alarm_engine.process_alarm(value)
+            start_alarm_consumer(_alarm_handler)
+        except Exception:
+            pass
 
 
 @app.on_event("shutdown")

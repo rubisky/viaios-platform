@@ -281,7 +281,7 @@ class PersonReIDPipeline(BasePipeline):
         persons = [d for d in det_result.get("detections", []) if d["class"] == "person"]
 
         if not persons:
-            return {"pipeline": "person_reid", "persons": [], "count": 0, "source": "onnx"}
+            return {"pipeline": "person_reid", "persons": [], "count": 0, "latency_ms": 0, "source": "onnx"}
 
         start = time.perf_counter()
         results = []
@@ -317,7 +317,7 @@ class PersonReIDPipeline(BasePipeline):
         }
 
     def _mock_reid(self) -> Dict:
-        return {"pipeline": "person_reid", "persons": [], "count": 0, "source": "mock"}
+        return {"pipeline": "person_reid", "persons": [], "count": 0, "latency_ms": 0, "source": "mock"}
 
 
 class VehiclePipeline(BasePipeline):
@@ -338,7 +338,7 @@ class VehiclePipeline(BasePipeline):
         vehicles = [d for d in det_result.get("detections", []) if d["class"] in VEHICLE_CLASSES]
 
         if not vehicles:
-            return {"pipeline": "vehicle", "vehicles": [], "count": 0, "source": "onnx"}
+            return {"pipeline": "vehicle", "vehicles": [], "count": 0, "latency_ms": 0, "source": "onnx"}
 
         start = time.perf_counter()
         results = []
@@ -375,7 +375,7 @@ class VehiclePipeline(BasePipeline):
         }
 
     def _mock_vehicle(self) -> Dict:
-        return {"pipeline": "vehicle", "vehicles": [], "count": 0, "source": "mock"}
+        return {"pipeline": "vehicle", "vehicles": [], "count": 0, "latency_ms": 0, "source": "mock"}
 
 
 # ===== Pipeline registry =====

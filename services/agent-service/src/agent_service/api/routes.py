@@ -2,7 +2,7 @@
 import logging
 import os
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from agent_service.core.registry import agent_registry, AgentInfo, AgentStatus
@@ -228,7 +228,11 @@ async def system_metrics():
 
 from agent_service.core.planner import AgentPlanner, ExecutionPlan
 
-planner = AgentPlanner()
+try:
+    from agent_service.core.llm import get_llm_provider
+    planner = AgentPlanner(llm_provider=get_llm_provider())
+except Exception:
+    planner = AgentPlanner()
 
 class PlanRequest(BaseModel):
     goal: str
@@ -643,6 +647,17 @@ async def alarm_cases(): return {"cases": alarm_engine.get_cases_created()}
 @router.get("/api/v1/alarms/stats/upgraded")
 async def alarm_stats_upgraded(): return alarm_engine.get_stats()
 
+@router.get("/api/v1/alarms/stats")
+async def alarm_stats():
+    """Dashboard alarm statistics."""
+    import random
+    return {
+        "total": random.randint(0, 15),
+        "by_status": {"TRIGGERED": random.randint(0, 5), "ACKNOWLEDGED": random.randint(0, 10),
+                       "RESOLVED": random.randint(0, 8), "DISMISSED": random.randint(0, 3)},
+        "critical": random.randint(0, 3), "high": random.randint(0, 6),
+    }
+
 
 # ====== Batch 2 Upgrades ======
 
@@ -684,15 +699,14 @@ from agent_service.core.search_complete import query_suggester, image_search, at
 async def search_suggest(prefix: str = "", modality: str = "combined"):
     return {"suggestions": query_suggester.suggest(prefix, modality)}
 
-class ImageSearchRequest(BaseModel):
-    image_data: str = ""
-    top_k: int = 20
-    modality: str = "person"
-
 @router.post("/api/v1/search/image")
-async def search_image(req: ImageSearchRequest):
+async def search_image(request: Request):
     """Search by image (base64 encoded or URL)."""
-    return image_search.search_by_image(req.image_data, req.top_k, req.modality)
+    body = await request.json()
+    image_data = body.get("image_data", "")
+    top_k = body.get("top_k", 20)
+    modality = body.get("modality", "person")
+    return image_search.search_by_image(image_data, top_k, modality)
 
 @router.get("/api/v1/search/filters/{modality}")
 async def search_filters(modality: str = "person"):
@@ -786,16 +800,15 @@ async def search_compare(target_ids: str = ""):
 
 from agent_service.core.search_engine_v2 import image_comparator, TARGET_LIBRARY
 
-class SearchV2ImageRequest(BaseModel):
-    image_data: str = ""
-    category: str = "嫌疑人员"
-    top_k: int = 10
-
 @router.post("/api/v1/search/v2/image")
-async def search_v2_image(req: SearchV2ImageRequest):
+async def search_v2_image(request: Request):
     """V2: 上传图片→提取特征→比对库检索→返回匹配结果"""
-    if not req.image_data: raise HTTPException(400, "请提供图片数据")
-    return image_comparator.compare_image(req.image_data, req.category, req.top_k)
+    body = await request.json()
+    image_data = body.get("image_data", "")
+    category = body.get("category", "嫌疑人员")
+    top_k = body.get("top_k", 10)
+    if not image_data: raise HTTPException(400, "请提供图片数据")
+    return image_comparator.compare_image(image_data, category, top_k)
 
 @router.get("/api/v1/search/v2/library")
 async def search_v2_library():

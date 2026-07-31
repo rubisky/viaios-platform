@@ -117,19 +117,19 @@ class AgentPlanner:
         import asyncio
         from .llm import LLMMessage
 
-        prompt = f"""You are an AI task planner. Decompose this goal into executable steps.
-
-Goal: {goal}
-Available agents: {', '.join(agents)}
-Strategy: {strategy}
-
-Return a JSON array of steps. Each step has:
-- "name": short name
-- "agent_type": one of [{', '.join(agents)}]
-- "estimated_duration_s": integer seconds
-
-Return ONLY the JSON array, no other text.
-Example: [{"name":"Detect objects","agent_type":"video_analysis","estimated_duration_s":20}]"""
+        agents_str = ', '.join(agents)
+        prompt = (
+            "You are an AI task planner. Decompose this goal into executable steps.\n\n"
+            f"Goal: {goal}\n"
+            f"Available agents: {agents_str}\n"
+            f"Strategy: {strategy}\n\n"
+            "Return a JSON array of steps. Each step has:\n"
+            '- "name": short name\n'
+            f'- "agent_type": one of [{agents_str}]\n'
+            '- "estimated_duration_s": integer seconds\n\n'
+            "Return ONLY the JSON array, no other text.\n"
+            'Example: [{"name":"Detect objects","agent_type":"video_analysis","estimated_duration_s":20}]'
+        )
 
         try:
             loop = asyncio.get_event_loop()

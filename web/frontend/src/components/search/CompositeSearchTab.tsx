@@ -135,7 +135,7 @@ const CompositeSearchTab: React.FC<Props> = ({
             style={{ background: enableImage ? '#0f0f23' : '#0a0a15', border: `1px solid ${enableImage ? '#1677ff44' : '#2a2a4a'}`, marginBottom: 12 }}>
             {enableImage && (
               <Dragger maxCount={1} accept="image/*" fileList={fileList}
-                beforeUpload={() => Upload.LIST_IGNORE}
+                beforeUpload={() => false}
                 onChange={({ fileList: fl }) => setFileList(fl)}
                 itemRender={(_, file) => (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

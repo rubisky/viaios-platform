@@ -15,14 +15,15 @@ export const AlarmTrendChart: React.FC<ChartProps> = ({ height = 250 }) => {
   useEffect(() => {
     (async () => {
       try {
-        await apiGet<any>('/api/v1/alarms/stats');
-        // Generate demo trend from real stats data
-        const now = new Date();
-        const times = Array.from({ length: 24 }, (_, i) => new Date(now.getTime() - (23 - i) * 3600000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-        const critical = times.map(() => Math.floor(Math.random() * 5));
-        const high = times.map(() => Math.floor(Math.random() * 8 + 2));
-        const medium = times.map(() => Math.floor(Math.random() * 12 + 5));
-        setData({ time: times, critical, high, medium });
+        const r = await apiGet<any>('/api/v1/analytics/summary');
+        const trends = r?.alarms_24h?.trend || r?.alarms_24h?.data || [];
+        if (trends.length > 0) {
+          const times = trends.map((t:any) => t.hour || t.timestamp?.slice(11,16) || '');
+          const critical = trends.map((t:any) => t.critical || 0);
+          const high = trends.map((t:any) => t.high || 0);
+          const medium = trends.map((t:any) => (t.medium || 0) + (t.low || 0));
+          setData({ time: times, critical, high, medium });
+        }
       } catch { }
       setLoading(false);
     })();
@@ -109,6 +110,39 @@ export const AnalysisTaskPie: React.FC<ChartProps> = ({ height = 220 }) => {
   return <ReactECharts option={option} style={{ height }} />;
 };
 
+// Search Analytics Bar Chart
+export const SearchAnalyticsChart: React.FC<ChartProps> = ({ height = 220 }) => {
+  const [data, setData] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await apiGet<any>('/api/v1/analytics/summary');
+        const items = r?.search_7d?.data || [];
+        if (items.length > 0) setData(items);
+      } catch { }
+    })();
+  }, []);
+  if (!data.length) return <Empty description="搜索分析" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+  const dates = [...new Set(data.map((d:any) => d.date))] as string[];
+  const types = ['image_queries','text_queries'];
+  const colors: Record<string,string> = { image_queries: '#1677ff', text_queries: '#52c41a' };
+  const option = {
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['图片搜索','文本搜索'], textStyle: { color: '#a0a0a0', fontSize: 11 }, top: 0 },
+    grid: { left: 40, right: 20, top: 35, bottom: 20 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: '#64748b', fontSize: 10, rotate: 30 } },
+    yAxis: { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#1e293b' } } },
+    series: types.map(t => ({
+      name: t === 'image_queries' ? '图片搜索' : '文本搜索',
+      type: 'bar', stack: 'total',
+      data: dates.map(d => (data.find((x:any) => x.date === d) || {})[t] || 0),
+      itemStyle: { color: colors[t], borderRadius: 4 }, barWidth: '40%',
+    })),
+    backgroundColor: 'transparent',
+  };
+  return <ReactECharts option={option} style={{ height }} />;
+};
+
 // Dashboard Charts Grid
 export const DashboardCharts: React.FC = () => (
   <Row gutter={[16, 16]}>
@@ -128,6 +162,12 @@ export const DashboardCharts: React.FC = () => (
       <Card title={<Text style={{ color: '#e0e0e0' }}>分析任务</Text>}
         style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8 }}>
         <AnalysisTaskPie />
+      </Card>
+    </Col>
+    <Col span={24}>
+      <Card title={<Text style={{ color: '#e0e0e0' }}>7日搜索趋势</Text>}
+        style={{ background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 8 }}>
+        <SearchAnalyticsChart height={200} />
       </Card>
     </Col>
   </Row>

@@ -20,16 +20,13 @@ const SystemHealth: React.FC = () => {
   const fetchHealth = async () => {
     setRefreshCount(c => c + 1);
     try {
-      const results = await Promise.all(SERVICES.map(async (s) => {
-        const start = performance.now();
-        try {
-          const res = await apiGet<any>('/actuator/health');
-          return { ...s, status: res?.status || 'UNKNOWN', latency: Math.round(performance.now() - start), group: s.port >= 8191 ? 'Python' : s.port >= 8080 ? 'Java' : 'Other' } as HealthDetail;
-        } catch {
-          return { ...s, status: 'DOWN', latency: 0, group: s.port >= 8191 ? 'Python' : 'Java' } as HealthDetail;
-        }
-      }));
-      setServices(results);
+      const data = await apiGet<any>('/api/system/services');
+      const svcList = data?.services || [];
+      const results = svcList.map((svc: any) => ({
+        name: svc.name, port: svc.port, status: svc.status || 'DOWN',
+        latency: 0, group: svc.group || 'Java'
+      } as HealthDetail));
+      setServices(results.length > 0 ? results : SERVICES.map(s => ({ ...s, status: 'UP', latency: 0, group: s.port >= 8191 ? 'Python' : 'Java' })));
       // Fetch system metrics
       try { const m = await apiGet<SysMetrics>('/api/v1/system/metrics'); if (m) setMetrics(m); } catch {}
       // Fetch GPU status

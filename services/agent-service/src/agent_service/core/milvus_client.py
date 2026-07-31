@@ -113,7 +113,6 @@ class MilvusClient:
         health_monitor.record("milvus_collections_ready", sum(1 for v in results.values() if v))
         return results
 
-    @circuit_breaker.call
     def search(
         self,
         collection_name: str,

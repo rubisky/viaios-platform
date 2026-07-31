@@ -10,7 +10,6 @@ import logging
 from fastapi import APIRouter, Response
 
 from .production_upgrade import health_monitor, production_cache, circuit_breaker
-from .kafka_bridge import kafka_provider as _kp
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["monitoring"])
