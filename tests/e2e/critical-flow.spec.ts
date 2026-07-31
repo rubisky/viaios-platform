@@ -97,4 +97,71 @@ test.describe('VIAIOS Critical Flows', () => {
       console.log(`[PASS] ${api}: 200`);
     }
   });
+
+  test('AI Search with real ONNX', async ({ request }) => {
+    const authResp = await request.post(`${BASE_URL}/api/v1/auth/login`, {
+      data: CREDENTIALS, headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await authResp.json();
+    expect(data.accessToken).toBeTruthy();
+
+    // Test image search (real AI detection)
+    const resp = await request.post(`${BASE_URL}/api/v1/search/v2/image`, {
+      data: { image_data: 'dGVzdA==', category: '嫌疑人员', top_k: 5 },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(resp.status()).toBe(200);
+    const d = await resp.json();
+    expect(d).toHaveProperty('AI检测');
+    expect(d).toHaveProperty('结果');
+    console.log('[PASS] AI Search: real=', d['真实AI']);
+  });
+
+  test('Agent Planner + Reasoner + Graph', async ({ request }) => {
+    // Get auth token first
+    const auth = await request.post(`${BASE_URL}/api/v1/auth/login`, {
+      data: CREDENTIALS, headers: { 'Content-Type': 'application/json' },
+    });
+    const token = (await auth.json()).accessToken;
+    const h = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+    // Planner
+    const r1 = await request.post(`${BASE_URL}/api/v1/agents/plan`, {
+      data: { goal: 'find person near Gate A', strategy: 'sequential' }, headers: h,
+    });
+    expect(r1.status()).toBe(200);
+    const p = await r1.json();
+    expect(p.steps.length).toBeGreaterThan(0);
+    console.log('[PASS] Planner:', p.steps.length, 'steps');
+
+    // Reasoner
+    const r2 = await request.post(`${BASE_URL}/api/v1/reasoning/reason`, {
+      data: { query: 'Was suspect at scene?', max_steps: 2 }, headers: h,
+    });
+    expect(r2.status()).toBe(200);
+    console.log('[PASS] Reasoner: conf=', (await r2.json()).confidence);
+
+    // Knowledge Graph (no auth needed - direct to Python agent)
+    const r3 = await request.post(`${BASE_URL}/api/v1/graph/execute`, {
+      data: { query_name: 'entity_neighbors', params: { entity_id: 'P001' } },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(r3.status()).toBe(200);
+    console.log('[PASS] Graph query');
+  });
+
+  test('System Health + Services', async ({ request }) => {
+    const r = await request.get(`${BASE_URL}/api/system/services`);
+    expect(r.status()).toBe(200);
+    const d = await r.json();
+    const up = d.services.filter((s:any) => s.status === 'UP').length;
+    expect(up).toBeGreaterThanOrEqual(15);
+    console.log(`[PASS] Services: ${up}/${d.services.length} UP`);
+  });
+
+  test('Grafana accessible', async ({ request }) => {
+    const r = await request.get('http://ry3.9gpu.com:17006');
+    expect(r.status()).toBe(200);
+    console.log('[PASS] Grafana: UP');
+  });
 });

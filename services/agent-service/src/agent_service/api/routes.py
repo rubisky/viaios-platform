@@ -838,6 +838,59 @@ async def search_v2_compare(request: CompareRequest):
     return {"对比结果": result, "对比数量": len(result)}
 
 
+# ====== Camera Data from PG ======
+
+class CameraCreate(BaseModel):
+    name: str; location: str = ""; protocol: str = "RTSP"
+    ip_address: str = ""; port: int = 554; status: str = "offline"
+
+@router.get("/api/v1/cameras")
+async def list_cameras():
+    """List cameras from PostgreSQL."""
+    try:
+        import psycopg2, json
+        conn = psycopg2.connect(host="localhost", dbname="viaios", user="viaios", password="viaios123", connect_timeout=3)
+        cur = conn.cursor()
+        cur.execute("SELECT id, name, location, protocol, ip_address, port, status, resolution, fps, created_at FROM cameras ORDER BY created_at DESC LIMIT 100")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        cameras = []
+        for r in rows:
+            cameras.append({"id": str(r[0]), "name": r[1], "location": r[2] or "", "protocol": r[3] or "RTSP",
+                "ip_address": r[4] or "", "port": r[5] or 554, "status": r[6] or "offline",
+                "resolution": r[7] or "", "fps": r[8] or 0, "created_at": str(r[9]) if r[9] else ""})
+        return {"cameras": cameras, "total": len(cameras)}
+    except Exception as e:
+        return {"cameras": [], "total": 0, "error": str(e)}
+
+@router.post("/api/v1/cameras")
+async def create_camera(req: CameraCreate):
+    try:
+        import psycopg2, uuid
+        conn = psycopg2.connect(host="localhost", dbname="viaios", user="viaios", password="viaios123", connect_timeout=3)
+        cur = conn.cursor()
+        cid = str(uuid.uuid4())
+        cur.execute("INSERT INTO cameras (id,name,location,protocol,ip_address,port,status) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (cid, req.name, req.location, req.protocol, req.ip_address, req.port, req.status))
+        conn.commit(); cur.close(); conn.close()
+        return {"id": cid, "name": req.name, "status": "created"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.get("/api/v1/cameras/stats")
+async def camera_stats():
+    try:
+        import psycopg2
+        conn = psycopg2.connect(host="localhost", dbname="viaios", user="viaios", password="viaios123", connect_timeout=3)
+        cur = conn.cursor()
+        cur.execute("SELECT status, count(*) FROM cameras GROUP BY status")
+        rows = dict(cur.fetchall())
+        cur.close(); conn.close()
+        return {"total": sum(rows.values()), "online": rows.get("online", 0), "offline": rows.get("offline", 0),
+                "streaming": rows.get("streaming", 0), "active_streams": rows.get("streaming", 0)}
+    except:
+        return {"total": 0, "online": 0, "offline": 0, "streaming": 0}
+
 # ====== Data Enricher ======
 
 from agent_service.core.data_enricher import data_enricher
