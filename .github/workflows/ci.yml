@@ -1,0 +1,84 @@
+name: VIAIOS CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ===== Frontend Build + E2E =====
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm', cache-dependency-path: web/frontend/package-lock.json }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with: { name: frontend-dist, path: web/frontend/dist }
+
+  # ===== E2E Tests =====
+  e2e:
+    needs: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+        working-directory: .
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test tests/e2e/critical-flow.spec.ts --project=chromium
+        working-directory: .
+        env: { BASE_URL: '${{ secrets.VIAIOS_URL }}' }
+
+  # ===== Deploy =====
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [frontend, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: frontend-dist, path: web/frontend/dist }
+
+      # Python syntax check
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.8' }
+      - run: |
+          find services -name "*.py" -not -path "*__pycache__*" | while read f; do
+            python -m py_compile "$f" || exit 1
+          done
+
+      # Deploy via SSH
+      - name: Deploy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VIAIOS_HOST }}
+          port: ${{ secrets.VIAIOS_PORT }}
+          username: ${{ secrets.VIAIOS_USER }}
+          password: ${{ secrets.VIAIOS_PASS }}
+          source: "services/agent-service/src/*,web/frontend/dist/*"
+          target: "/opt/viaios/"
+          strip_components: 0
+          rm: false
+
+      - name: Restart services
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VIAIOS_HOST }}
+          port: ${{ secrets.VIAIOS_PORT }}
+          username: ${{ secrets.VIAIOS_USER }}
+          password: ${{ secrets.VIAIOS_PASS }}
+          script: |
+            systemctl restart viaios-py-agent viaios-py-capability viaios-py-knowledge
+            nginx -s reload
+            sleep 5
+            echo "Deployed at $(date)" >> /opt/viaios/.deploy_version

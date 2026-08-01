@@ -234,9 +234,13 @@ class SimulatedProvider(BaseLLMProvider):
 _global_provider: Optional[BaseLLMProvider] = None
 
 
-def get_llm_provider(provider_type: str = "simulated", **kwargs) -> BaseLLMProvider:
-    """Get or create an LLM provider instance."""
+def get_llm_provider(provider_type: str = None, **kwargs) -> BaseLLMProvider:
+    """Get or create an LLM provider instance. Auto-detects DeepSeek if key set."""
     global _global_provider
+    if provider_type is None:
+        # Auto-detect: use DeepSeek if API key is configured
+        import os as _os
+        provider_type = "deepseek" if _os.getenv("DEEPSEEK_API_KEY") else "simulated"
 
     if _global_provider is not None:
         return _global_provider
