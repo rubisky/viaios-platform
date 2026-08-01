@@ -72,19 +72,26 @@ async def all_services_health():
 @app.get("/health")
 @app.get("/actuator/health")
 async def health_check():
+    milvus_ok = False; age_ok = False; onnx_models = []; gpu_available = False
     try:
         from agent_service.core.milvus_client import milvus_client
         milvus_ok = milvus_client.get_stats()["connected"]
-    except Exception:
-        milvus_ok = False
+    except Exception: pass
     try:
         from agent_service.core.age_client import age_client
         age_ok = age_client.get_stats()["source"] == "age"
-    except Exception:
-        age_ok = False
+    except Exception: pass
+    try:
+        from agent_service.core.inference_pipeline import load_all_pipelines
+        results = load_all_pipelines()
+        onnx_models = [k for k, v in results.items() if v]
+        import onnxruntime
+        gpu_available = "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+    except Exception: pass
     return {
         "status": "UP", "service": settings.app_name, "version": settings.app_version,
         "milvus": milvus_ok, "age": age_ok,
+        "onnx_models": onnx_models, "gpu": gpu_available,
     }
 
 
