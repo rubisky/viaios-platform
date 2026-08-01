@@ -69,6 +69,26 @@ async def all_services_health():
     return {"services": result, "total": len(result),
             "up": sum(1 for s in result if s["status"] == "UP")}
 
+@app.get("/api/system/models")
+async def list_models():
+    """List all ONNX models and their load status."""
+    import os, glob
+    result = []
+    model_dir = "/opt/viaios/models"
+    for f in sorted(glob.glob(f"{model_dir}/*.onnx")):
+        name = os.path.basename(f)
+        size_mb = os.path.getsize(f) // 1048576
+        result.append({"name": name, "size_mb": size_mb})
+    try:
+        from agent_service.core.inference_pipeline import load_all_pipelines
+        pipelines = load_all_pipelines()
+        result.append({"pipelines": {k: "LOADED" if v else "MISSING" for k, v in pipelines.items()}})
+        import onnxruntime
+        result.append({"gpu_providers": onnxruntime.get_available_providers()})
+    except Exception:
+        pass
+    return {"models": result, "total": len([m for m in result if "name" in m])}
+
 @app.get("/health")
 @app.get("/actuator/health")
 async def health_check():
