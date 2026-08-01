@@ -84,7 +84,7 @@ class BasePipeline(ABC):
             sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
             providers = ort.get_available_providers()
-            if "CUDAExecutionProvider" in providers and os.getenv("VIAIOS_DEVICE", "cpu") != "cpu":
+            if "CUDAExecutionProvider" in providers:
                 provider = ["CUDAExecutionProvider"]
             else:
                 provider = ["CPUExecutionProvider"]
