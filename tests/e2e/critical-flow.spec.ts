@@ -183,8 +183,9 @@ test.describe('VIAIOS Critical Flows', () => {
     console.log('[PASS] Cameras + Stats OK');
   });
 
-  test('Notifications + Alarms', async ({ request }) => {
+  test('Alarms Auth Check', async ({ request }) => {
     const r = await request.get(`${BASE_URL}/api/v1/alarms/stats`);
-    console.log(`[PASS] Alarms: HTTP ${r.status()} (accepting any response)`);
+    expect([200,401]).toContain(r.status());
+    console.log(`[PASS] Alarms: HTTP ${r.status()} (endpoint reachable)`);
   });
 });
