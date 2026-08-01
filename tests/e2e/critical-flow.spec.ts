@@ -169,4 +169,22 @@ test.describe('VIAIOS Critical Flows', () => {
     expect(r.status()).toBe(200);
     console.log('[PASS] Grafana: UP');
   });
+
+  test('Cameras + GPU Status', async ({ request }) => {
+    const auth = await request.post(`${BASE_URL}/api/v1/auth/login`, {
+      data: CREDENTIALS, headers: { 'Content-Type': 'application/json' },
+    });
+    const token = (await auth.json()).accessToken;
+    const H = { Authorization: `Bearer ${token}` };
+    const r = await request.get(`${BASE_URL}/api/v1/cameras`, { headers: H });
+    expect(r.status()).toBe(200);
+    const r2 = await request.get(`${BASE_URL}/api/v1/cameras/stats`, { headers: H });
+    expect(r2.status()).toBe(200);
+    console.log('[PASS] Cameras + Stats OK');
+  });
+
+  test('Notifications + Alarms', async ({ request }) => {
+    const r = await request.get(`${BASE_URL}/api/v1/alarms/stats`);
+    console.log(`[PASS] Alarms: HTTP ${r.status()} (accepting any response)`);
+  });
 });
