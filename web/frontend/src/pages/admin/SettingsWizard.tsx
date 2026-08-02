@@ -1,8 +1,8 @@
 /** Settings Wizard — System configuration dashboard */
 import React, { useEffect, useState } from 'react';
-import { Card, Tabs, Switch, Select, Slider, Button, Input, Space, message, Form, InputNumber, Descriptions, Tag } from 'antd';
-import { SaveOutlined, ReloadOutlined, ApiOutlined, DatabaseOutlined, CloudOutlined } from '@ant-design/icons';
-import { apiGet, apiPost } from '../../api/client';
+import { Card, Tabs, Switch, Select, Button, Space, message, Form, InputNumber, Descriptions, Tag } from 'antd';
+import { SaveOutlined, ApiOutlined, DatabaseOutlined, CloudOutlined } from '@ant-design/icons';
+import { apiGet } from '../../api/client';
 
 const SettingsWizard: React.FC = () => {
   const [kernelHealth, setKernelHealth] = useState<any>({});
