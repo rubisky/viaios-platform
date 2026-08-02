@@ -20,6 +20,8 @@ const ReportPage = lazy(() => import('@/pages/reports/ReportPage'));
 const TrajectoryViewer = lazy(() => import('@/pages/trajectory/TrajectoryViewer'));
 const WorkflowEditor = lazy(() => import('@/pages/workflow/WorkflowEditor'));
 const KnowledgeGraph = lazy(() => import('@/pages/knowledge/KnowledgeGraph'));
+const ModelManagement = lazy(() => import('@/pages/admin/ModelManagement'));
+const AuditLog = lazy(() => import('@/pages/admin/AuditLog'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 import AuthGuard from '@/components/AuthGuard';
 import NotificationBell from '@/components/NotificationBell';
@@ -41,6 +43,8 @@ const menuItems: MenuItem[] = [
   { key: '/reports', icon: <FileTextOutlined />, label: '报告中心' },
   { key: '/knowledge', icon: <ApartmentOutlined />, label: '知识图谱' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统管理' },
+  { key: '/models', icon: <SettingOutlined />, label: '模型管理' },
+  { key: '/audit', icon: <SettingOutlined />, label: '审计日志' },
 ];
 
 const MainLayout: React.FC = () => {
@@ -176,6 +180,8 @@ const MainLayout: React.FC = () => {
             <Route path="/reports" element={<ReportPage />} />
             <Route path="/knowledge" element={<KnowledgeGraph />} />
             <Route path="/settings" element={<AdminPage />} />
+            <Route path="/models" element={<ModelManagement />} />
+            <Route path="/audit" element={<AuditLog />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
           </Suspense>
