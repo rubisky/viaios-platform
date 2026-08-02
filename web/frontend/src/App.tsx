@@ -23,6 +23,7 @@ const KnowledgeGraph = lazy(() => import('@/pages/knowledge/KnowledgeGraph'));
 const ModelManagement = lazy(() => import('@/pages/admin/ModelManagement'));
 const AuditLog = lazy(() => import('@/pages/admin/AuditLog'));
 const SystemDiagnostics = lazy(() => import('@/pages/admin/SystemDiagnostics'));
+const SettingsWizard = lazy(() => import('@/pages/admin/SettingsWizard'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 import AuthGuard from '@/components/AuthGuard';
 import NotificationBell from '@/components/NotificationBell';
@@ -47,6 +48,7 @@ const menuItems: MenuItem[] = [
   { key: '/models', icon: <SettingOutlined />, label: '模型管理' },
   { key: '/audit', icon: <SettingOutlined />, label: '审计日志' },
   { key: '/diagnostics', icon: <SettingOutlined />, label: '系统诊断' },
+  { key: '/wizard', icon: <SettingOutlined />, label: '设置向导' },
 ];
 
 const MainLayout: React.FC = () => {
@@ -185,6 +187,7 @@ const MainLayout: React.FC = () => {
             <Route path="/models" element={<ModelManagement />} />
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/diagnostics" element={<SystemDiagnostics />} />
+            <Route path="/wizard" element={<SettingsWizard />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
           </Suspense>
