@@ -1587,3 +1587,70 @@ async def tool_stats():
     """Get tool manager statistics."""
     from agent_service.core.tool_manager import get_tool_manager
     return get_tool_manager().stats()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Event Manager API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/events/stats", tags=["Event Manager"])
+async def event_stats():
+    """Get event manager statistics."""
+    from agent_service.core.event_manager import get_event_manager
+    return get_event_manager().stats()
+
+@router.get("/events/recent", tags=["Event Manager"])
+async def event_recent(limit: int = 50):
+    """Get recent events."""
+    from agent_service.core.event_manager import get_event_manager
+    return {"events": get_event_manager().recent_events(limit)}
+
+@router.get("/events/subscriptions", tags=["Event Manager"])
+async def event_subscriptions():
+    """List active event subscriptions."""
+    from agent_service.core.event_manager import get_event_manager
+    return {"subscriptions": get_event_manager().list_subscriptions()}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Policy Engine API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/policies/rules", tags=["Policy Engine"])
+async def policy_rules():
+    """List all policy rules."""
+    from agent_service.core.policy_engine import get_policy_engine
+    return {"rules": get_policy_engine().list_rules()}
+
+@router.get("/policies/stats", tags=["Policy Engine"])
+async def policy_stats():
+    """Get policy engine statistics."""
+    from agent_service.core.policy_engine import get_policy_engine
+    return get_policy_engine().stats()
+
+class PolicyEvalRequest(BaseModel):
+    subject: str = "test-user"
+    action: str = "read"
+    resource: str = "cameras"
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+
+@router.post("/policies/evaluate", tags=["Policy Engine"])
+async def policy_evaluate(req: PolicyEvalRequest):
+    """Evaluate all policies against a context."""
+    from agent_service.core.policy_engine import get_policy_engine, PolicyContext
+    ctx = PolicyContext(subject=req.subject, action=req.action,
+                       resource=req.resource, attributes=req.attributes)
+    decision = get_policy_engine().evaluate(ctx)
+    return {
+        "allowed": decision.allowed,
+        "matched_rules": decision.matched_rules,
+        "reasons": decision.reasons,
+    }
+
+@router.post("/policies/simulate", tags=["Policy Engine"])
+async def policy_simulate(req: PolicyEvalRequest):
+    """Simulate policy evaluation without enforcing."""
+    from agent_service.core.policy_engine import get_policy_engine, PolicyContext
+    ctx = PolicyContext(subject=req.subject, action=req.action,
+                       resource=req.resource, attributes=req.attributes)
+    return {"simulation": get_policy_engine().simulate(ctx)}
