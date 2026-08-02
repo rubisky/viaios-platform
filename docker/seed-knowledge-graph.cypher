@@ -73,3 +73,27 @@ MATCH (c:Case {id: 'CASE001'}), (p:Person {id: 'P003'})
 CREATE (c)-[:INVOLVES {role: 'suspect'}]->(p);
 MATCH (c:Case {id: 'CASE002'}), (v:Vehicle {id: 'V001'})
 CREATE (c)-[:INVOLVES {role: 'stolen_vehicle'}]->(v);
+
+-- === P5-1: Document entities + Related + Contain relationships ===
+
+CREATE (:Document {id: 'D001', name: 'Investigation Report #1', type: 'report', format: 'pdf', case_id: 'CASE001', created_by: 'admin'});
+CREATE (:Document {id: 'D002', name: 'Evidence Photo A', type: 'image', format: 'jpg', case_id: 'CASE001', source: 'C001'});
+CREATE (:Document {id: 'D003', name: 'Surveillance Log 2026-08-02', type: 'log', format: 'json', source: 'C004'});
+
+-- Related: cases related to documents
+MATCH (c:Case {id: 'CASE001'}), (d:Document {id: 'D001'})
+CREATE (c)-[:RELATED]->(d);
+MATCH (c:Case {id: 'CASE001'}), (d:Document {id: 'D002'})
+CREATE (c)-[:RELATED]->(d);
+MATCH (d1:Document {id: 'D001'}), (d2:Document {id: 'D002'})
+CREATE (d1)-[:RELATED {type: 'evidence_attachment'}]->(d2);
+
+-- Contain: cases contain evidence
+MATCH (c:Case {id: 'CASE001'}), (e:Document {id: 'D002'})
+CREATE (c)-[:CONTAINS]->(e);
+MATCH (c:Case {id: 'CASE002'}), (v:Vehicle {id: 'V001'})
+CREATE (c)-[:CONTAINS {evidence_type: 'vehicle_record'}]->(v);
+
+-- Person-Document relations
+MATCH (p:Person {id: 'P001'}), (d:Document {id: 'D001'})
+CREATE (d)-[:RELATED {type: 'subject'}]->(p);

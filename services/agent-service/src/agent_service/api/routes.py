@@ -1712,6 +1712,37 @@ async def memory_recall(query: str = "", limit: int = 10):
 # Security Engine API
 # ═══════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════
+# Notification Service API (P5-2)
+# ═══════════════════════════════════════════════════════════════════
+
+class NotifyRequest(BaseModel):
+    title: str = "Alert"
+    message: str = ""
+    channel: str = "console"
+    priority: str = "normal"
+
+@router.post("/notify/send", tags=["Notification"])
+async def notify_send(req: NotifyRequest):
+    """Send notification via specified channel."""
+    from agent_service.core.notification_service import get_notification_service, Channel, Priority
+    n = get_notification_service().send(req.title, req.message,
+        Channel(req.channel), Priority(req.priority))
+    return {"id": n.id, "status": n.status, "channel": n.channel.value}
+
+@router.get("/notify/history", tags=["Notification"])
+async def notify_history(limit: int = 50):
+    """Get notification history."""
+    from agent_service.core.notification_service import get_notification_service
+    return {"notifications": get_notification_service().get_history(limit)}
+
+@router.get("/notify/stats", tags=["Notification"])
+async def notify_stats():
+    """Get notification statistics."""
+    from agent_service.core.notification_service import get_notification_service
+    return get_notification_service().stats()
+
+
 @router.get("/security/stats", tags=["Security"])
 async def security_stats():
     """Get security engine statistics."""
