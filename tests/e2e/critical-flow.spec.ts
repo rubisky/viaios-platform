@@ -6,7 +6,10 @@
 import { test, expect } from '@playwright/test';
 
 const BASE_URL = process.env.BASE_URL || 'http://ry3.9gpu.com:18006';
-const CREDENTIALS = { username: 'admin', password: 'viaios-admin-2024' };
+const CREDENTIALS = {
+  username: process.env.VIAIOS_ADMIN_USER || 'admin',
+  password: process.env.VIAIOS_ADMIN_PASS || 'changeme',
+};
 
 test.describe('VIAIOS Critical Flows', () => {
 

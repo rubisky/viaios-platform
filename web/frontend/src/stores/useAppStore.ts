@@ -18,18 +18,22 @@ interface AppState {
 }
 
 const savedToken = localStorage.getItem('viaios_token');
+const savedTheme = (localStorage.getItem('viaios_theme') as 'dark' | 'light') || 'dark';
 
 const useAppStore = create<AppState>((set) => ({
   user: null,
   token: savedToken,
-  theme: 'dark',
+  theme: savedTheme,
 
   setUser: (user) => set({ user }),
   setToken: (token) => {
     localStorage.setItem('viaios_token', token);
     set({ token });
   },
-  setTheme: (theme) => set({ theme }),
+  setTheme: (theme) => {
+    localStorage.setItem('viaios_theme', theme);
+    set({ theme });
+  },
   logout: () => {
     localStorage.removeItem('viaios_token');
     set({ user: null, token: null });

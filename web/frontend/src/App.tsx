@@ -1,11 +1,11 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, Dropdown, Space, Grid, ConfigProvider, theme as antTheme, Breadcrumb, Spin } from 'antd';
+import { Layout, Menu, Button, Dropdown, Space, Grid, ConfigProvider, theme as antTheme, Breadcrumb, Spin, Drawer } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   DashboardOutlined, SearchOutlined, FolderOpenOutlined, FileTextOutlined,
   SettingOutlined, VideoCameraOutlined, ApartmentOutlined, AimOutlined, NodeIndexOutlined,
-  UserOutlined, LogoutOutlined,
+  UserOutlined, LogoutOutlined, MenuOutlined,
 } from '@ant-design/icons';
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const CaseList = lazy(() => import('@/pages/cases/CaseList'));
@@ -47,7 +47,9 @@ const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const screens = Grid.useBreakpoint();
+  const isMobile = !screens.lg;
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, logout, theme, setTheme } = useAppStore();
 
   const selectedKey = menuItems.find(
@@ -59,59 +61,107 @@ const MainLayout: React.FC = () => {
     { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout },
   ];
 
+  const handleMenuClick = (key: string) => {
+    navigate(key);
+    setMobileMenuOpen(false);
+  };
+
   const isDark = theme === 'dark';
+
+  const sidebarBg = isDark ? '#0f0f23' : '#001529';
+
+  const menuNode = (
+    <>
+      <div style={{
+        height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontSize: collapsed && !isMobile ? 16 : 20, fontWeight: 700, letterSpacing: 2,
+        borderBottom: '1px solid #2a2a4a',
+      }}>
+        {collapsed && !isMobile ? 'VI' : 'VIAIOS'}
+      </div>
+      <Menu theme="dark" mode="inline" selectedKeys={[selectedKey === '/' ? '/' : selectedKey]}
+        items={menuItems} onClick={({ key }) => handleMenuClick(key)}
+        style={{ background: 'transparent', borderRight: 0 }} />
+    </>
+  );
+
   return (
     <ConfigProvider theme={{ algorithm: isDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm }}>
-    <Layout style={{ minHeight: '100vh', background: isDark ? '#0f0f23' : '#f0f2f5' }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}
-        breakpoint="lg" collapsedWidth={0}
-        style={{ background: '#0f0f23', borderRight: '1px solid #2a2a4a' }}>
-        <div style={{
-          height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: collapsed ? 16 : 20, fontWeight: 700, letterSpacing: 2,
-          borderBottom: '1px solid #2a2a4a',
-        }}>
-          {collapsed ? 'VI' : 'VIAIOS'}
-        </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[selectedKey === '/' ? '/' : selectedKey]}
-          items={menuItems} onClick={({ key }) => navigate(key)}
-          style={{ background: 'transparent', borderRight: 0 }} />
-      </Sider>
+    <Layout style={{ minHeight: '100vh', background: isDark ? '#0f0f23' : '#f0f2f5', transition: 'background 0.3s' }}>
+      {/* Mobile drawer menu */}
+      {isMobile ? (
+        <Drawer
+          placement="left"
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          width={260}
+          styles={{ body: { padding: 0, background: sidebarBg } }}
+          closeIcon={null}
+        >
+          {menuNode}
+        </Drawer>
+      ) : (
+        /* Desktop sidebar */
+        <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}
+          breakpoint="lg" collapsedWidth={64}
+          trigger={isMobile ? null : undefined}
+          style={{ background: sidebarBg, borderRight: `1px solid ${isDark ? '#2a2a4a' : '#0a0a1e'}`,
+            transition: 'all 0.3s', position: 'sticky', top: 0, height: '100vh', overflow: 'auto' }}>
+          {menuNode}
+        </Sider>
+      )}
       <Layout>
         <Header style={{
-          background: '#0f0f23', padding: '0 24px', display: 'flex',
-          alignItems: 'center', justifyContent: 'space-between',
-          borderBottom: '1px solid #2a2a4a', height: 64,
+          background: isDark ? '#0f0f23' : '#001529',
+          padding: isMobile ? '0 12px' : '0 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: `1px solid ${isDark ? '#2a2a4a' : '#0a0a1e'}`,
+          height: 64, transition: 'background 0.3s',
         }}>
-          <span style={{ color: '#e0e0e0', fontSize: 16, fontWeight: 500 }}>
-            VIAIOS 智能视频侦查平台
-          </span>
-          <Space size="large">
-            <Button type="text" style={{ color: '#e0e0e0' }} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              title={theme === 'dark' ? '切换浅色' : '切换深色'}>
+          <Space>
+            {isMobile && (
+              <Button type="text" icon={<MenuOutlined />}
+                style={{ color: '#e0e0e0' }}
+                onClick={() => setMobileMenuOpen(true)} />
+            )}
+            <span style={{
+              color: '#e0e0e0', fontSize: isMobile ? 14 : 16, fontWeight: 500,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {isMobile ? 'VIAIOS' : 'VIAIOS 智能视频侦查平台'}
+            </span>
+          </Space>
+          <Space size={isMobile ? 'small' : 'large'}>
+            <Button type="text"
+              style={{ color: '#e0e0e0', fontSize: isMobile ? 16 : 18 }}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              title={theme === 'dark' ? '切换浅色' : '切换深色'}
+            >
               {theme === 'dark' ? '☀️' : '🌙'}
             </Button>
-            <NotificationBell />
+            {!isMobile && <NotificationBell />}
             <Dropdown menu={{ items: userMenuItems }}>
               <Button type="text" style={{ color: '#e0e0e0' }}>
-                <Space>
+                <Space size={4}>
                   <UserOutlined />
-                  {user?.username || 'User'}
+                  {!isMobile && (user?.username || 'User')}
                 </Space>
               </Button>
             </Dropdown>
           </Space>
         </Header>
         <Content style={{
-          margin: screens.xs ? 8 : 16, padding: screens.xs ? 12 : 24,
+          margin: isMobile ? 8 : 16, padding: isMobile ? 12 : 24,
           background: isDark ? '#0f0f23' : '#fff', borderRadius: 8,
-          border: `1px solid ${isDark ? '#2a2a4a' : '#e5e7eb'}`, minHeight: 280, overflow: 'auto',
+          border: `1px solid ${isDark ? '#2a2a4a' : '#e5e7eb'}`,
+          minHeight: 280, overflow: 'auto', transition: 'background 0.3s, border-color 0.3s',
         }}>
-          <Breadcrumb style={{ marginBottom: 16 }}
-            items={location.pathname.split('/').filter(Boolean).map((p, i, arr) => ({
-              title: p.charAt(0).toUpperCase() + p.slice(1).replace(/-/g, ' '),
-              ...(i < arr.length - 1 ? {} : {}),
-            }))} />
+          {!isMobile && (
+            <Breadcrumb style={{ marginBottom: 16 }}
+              items={location.pathname.split('/').filter(Boolean).map((p) => ({
+                title: p.charAt(0).toUpperCase() + p.slice(1).replace(/-/g, ' '),
+              }))} />
+          )}
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 100 }}><Spin size="large" /></div>}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
