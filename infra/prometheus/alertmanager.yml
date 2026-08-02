@@ -1,0 +1,97 @@
+# VIAIOS Alertmanager Configuration
+# Routes alerts to appropriate channels based on severity and service.
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alertmanager@viaios.com'
+  smtp_auth_username: 'alertmanager@viaios.com'
+  smtp_auth_password: 'changeme'
+
+# Templates for notification messages
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree — alerts are routed top-down, first match wins
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'severity', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+
+  routes:
+    # Critical alerts → ops team (immediate)
+    - match:
+        severity: critical
+      receiver: 'ops-critical'
+      group_wait: 5s
+      repeat_interval: 1h
+      continue: true
+
+    # GPU alerts → ML team
+    - match:
+        tier: gpu
+      receiver: 'ml-team'
+      repeat_interval: 4h
+
+    # Infrastructure alerts → infra team
+    - match:
+        tier: infrastructure
+      receiver: 'infra-team'
+      repeat_interval: 4h
+
+    # Dev/test alerts → suppress at night
+    - match:
+        environment: dev
+      receiver: 'dev-null'
+      active_time_intervals:
+        - business_hours
+
+# Inhibition rules — suppress lower-priority alerts when higher fires
+inhibit_rules:
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'service']
+
+  - source_match:
+      alertname: ServiceDown
+    target_match:
+      alertname: HighLatency
+    equal: ['service']
+
+# Receivers
+receivers:
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://viaios-gateway:8080/api/v1/alerts/webhook'
+        send_resolved: true
+
+  - name: 'ops-critical'
+    webhook_configs:
+      - url: 'http://viaios-gateway:8080/api/v1/alerts/webhook'
+        send_resolved: true
+
+  - name: 'ml-team'
+    webhook_configs:
+      - url: 'http://viaios-gateway:8080/api/v1/alerts/webhook'
+        send_resolved: true
+
+  - name: 'infra-team'
+    webhook_configs:
+      - url: 'http://viaios-gateway:8080/api/v1/alerts/webhook'
+        send_resolved: true
+
+  - name: 'dev-null'
+    # Suppress alerts during non-business hours for dev env
+
+# Time intervals for routing
+time_intervals:
+  - name: business_hours
+    time_intervals:
+      - weekdays: ['monday:friday']
+        times:
+          - start_time: '09:00'
+            end_time: '18:00'

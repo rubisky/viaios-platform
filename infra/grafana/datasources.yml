@@ -14,6 +14,19 @@ datasources:
         - name: traceID
           datasourceUid: jaeger
 
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    url: http://clickhouse:8123
+    editable: true
+    jsonData:
+      defaultDatabase: viaios
+      username: viaios
+      protocol: native
+      port: 9000
+    secureJsonData:
+      password: viaios123
+
   - name: Jaeger
     type: jaeger
     access: proxy

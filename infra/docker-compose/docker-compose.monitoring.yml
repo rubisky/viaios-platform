@@ -92,6 +92,65 @@ services:
       - viaios-net
     restart: unless-stopped
 
+  # === ClickHouse Exporter ===
+  clickhouse-exporter:
+    image: clickhouse/clickhouse-exporter:latest
+    container_name: viaios-clickhouse-exporter
+    ports:
+      - "9363:9363"
+    environment:
+      CLICKHOUSE_USER: viaios
+      CLICKHOUSE_PASSWORD: viaios123
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: "8123"
+    networks:
+      - viaios-net
+    restart: unless-stopped
+
+  # === Kafka Exporter ===
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: viaios-kafka-exporter
+    ports:
+      - "9308:9308"
+    command:
+      - '--kafka.server=kafka:9092'
+      - '--kafka.version=3.7.0'
+    networks:
+      - viaios-net
+    restart: unless-stopped
+
+  # === DCGM GPU Exporter (NVIDIA GPU monitoring) ===
+  dcgm-exporter:
+    image: nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04
+    container_name: viaios-dcgm-exporter
+    runtime: nvidia
+    ports:
+      - "9400:9400"
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+    networks:
+      - viaios-net
+    restart: unless-stopped
+    profiles:
+      - gpu
+
+  # === Alertmanager ===
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: viaios-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ../prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - viaios-net
+    restart: unless-stopped
+
 networks:
   viaios-net:
     external: true
@@ -100,3 +159,4 @@ volumes:
   prometheus_data:
   grafana_data:
   jaeger_data:
+  alertmanager_data:
