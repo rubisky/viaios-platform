@@ -1654,3 +1654,46 @@ async def policy_simulate(req: PolicyEvalRequest):
     ctx = PolicyContext(subject=req.subject, action=req.action,
                        resource=req.resource, attributes=req.attributes)
     return {"simulation": get_policy_engine().simulate(ctx)}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Surveillance Engine API — 布控预警
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/surveillance/rules", tags=["Surveillance"])
+async def surveillance_rules():
+    """List all surveillance rules."""
+    from agent_service.core.surveillance import get_surveillance
+    return {"rules": get_surveillance().list_rules()}
+
+@router.get("/surveillance/alarms", tags=["Surveillance"])
+async def surveillance_alarms(severity: Optional[str] = None):
+    """List active alarms."""
+    from agent_service.core.surveillance import get_surveillance
+    alarms = get_surveillance().get_active_alarms(severity)
+    return {"total": len(alarms), "alarms": [
+        {"id": a.id, "rule": a.rule_name, "severity": a.severity.value,
+         "status": a.status.value, "message": a.message,
+         "triggered_at": a.triggered_at.isoformat()}
+        for a in alarms[:50]
+    ]}
+
+@router.get("/surveillance/stats", tags=["Surveillance"])
+async def surveillance_stats():
+    """Get surveillance statistics."""
+    from agent_service.core.surveillance import get_surveillance
+    return get_surveillance().stats()
+
+@router.post("/surveillance/alarms/{alarm_id}/acknowledge", tags=["Surveillance"])
+async def acknowledge_alarm(alarm_id: str):
+    """Acknowledge an alarm."""
+    from agent_service.core.surveillance import get_surveillance
+    a = get_surveillance().acknowledge(alarm_id)
+    return {"status": a.status.value}
+
+@router.post("/surveillance/alarms/{alarm_id}/resolve", tags=["Surveillance"])
+async def resolve_alarm(alarm_id: str, note: str = ""):
+    """Resolve an alarm."""
+    from agent_service.core.surveillance import get_surveillance
+    a = get_surveillance().resolve(alarm_id, note)
+    return {"status": a.status.value}
