@@ -106,7 +106,8 @@ async def health_check():
         results = load_all_pipelines()
         onnx_models = [k for k, v in results.items() if v]
         import onnxruntime
-        gpu_available = "CUDAExecutionProvider" in onnxruntime.get_available_providers()
+        providers = onnxruntime.get_available_providers()
+        gpu_available = any(p in str(providers) for p in ["CUDA", "Azure", "Tensorrt", "GPU"])
     except Exception: pass
     return {
         "status": "UP", "service": settings.app_name, "version": settings.app_version,
