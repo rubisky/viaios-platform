@@ -238,5 +238,317 @@ class PromptEngine:
                 "total_renders": len(self._history), "ab_tests": len(self._ab_tests)}
 
 
-# Global singleton
-prompt_engine = PromptEngine()
+# ═══════════════════════════════════════════════════════════════════
+# P1-3: Evaluation System
+# ═══════════════════════════════════════════════════════════════════
+
+@dataclass
+class PromptEvaluation:
+    """Evaluation result for a rendered prompt."""
+    eval_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    template_name: str = ""
+    version: str = ""
+    variables: Dict[str, Any] = field(default_factory=dict)
+    rendered_prompt: str = ""
+    response: Optional[str] = None
+    scores: Dict[str, float] = field(default_factory=dict)  # dimension → score
+    overall_score: float = 0.0
+    user_rating: Optional[int] = None   # 1-5 star
+    feedback: str = ""
+    evaluated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class PromptEvaluator:
+    """
+    Evaluate prompt effectiveness using automated metrics and user feedback.
+
+    Dimensions:
+    - clarity: Is the prompt clear and unambiguous?
+    - specificity: Does it provide enough detail?
+    - consistency: Does it produce consistent results?
+    - effectiveness: Does the response match expectations?
+    """
+
+    def __init__(self):
+        self._evaluations: List[PromptEvaluation] = []
+
+    def evaluate(self, template: PromptTemplate, rendered: str,
+                 response: Optional[str] = None) -> PromptEvaluation:
+        """Auto-evaluate a rendered prompt."""
+        ev = PromptEvaluation(
+            template_name=template.name,
+            version=template.version,
+            rendered_prompt=rendered[:500],
+            response=response[:500] if response else None,
+        )
+
+        # Automated scoring
+        scores = {}
+
+        # Clarity: prompts with clear instruction words score higher
+        clarity_words = ["analyze", "identify", "describe", "explain", "return",
+                        "generate", "compare", "summarize", "evaluate", "recommend"]
+        clarity_count = sum(rendered.lower().count(w) for w in clarity_words)
+        scores["clarity"] = min(1.0, clarity_count / 5)
+
+        # Specificity: more structured prompts score higher
+        structure_markers = ["step", "format", "include", "exclude", "section",
+                            "requirements", "constraints", "output"]
+        structure_count = sum(rendered.lower().count(w) for w in structure_markers)
+        scores["specificity"] = min(1.0, structure_count / 4)
+
+        # Length efficiency (not too short, not too long)
+        length = len(rendered)
+        if length < 100:
+            scores["conciseness"] = 0.5
+        elif length < 500:
+            scores["conciseness"] = 0.9
+        elif length < 1000:
+            scores["conciseness"] = 0.8
+        else:
+            scores["conciseness"] = 0.6
+
+        ev.scores = scores
+        ev.overall_score = round(sum(scores.values()) / len(scores), 3)
+        self._evaluations.append(ev)
+
+        # Update template metrics
+        template.avg_score = round(
+            (template.avg_score * template.usage_count + ev.overall_score) / (template.usage_count + 1), 3
+        )
+
+        return ev
+
+    def add_feedback(self, eval_id: str, rating: int, feedback: str = ""):
+        """Add user feedback to an evaluation."""
+        for ev in self._evaluations:
+            if ev.eval_id == eval_id:
+                ev.user_rating = rating
+                ev.feedback = feedback
+                break
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get evaluation statistics."""
+        if not self._evaluations:
+            return {"total_evaluations": 0}
+        scores = [ev.overall_score for ev in self._evaluations]
+        ratings = [ev.user_rating for ev in self._evaluations if ev.user_rating]
+        return {
+            "total_evaluations": len(self._evaluations),
+            "avg_score": round(sum(scores) / len(scores), 3),
+            "avg_rating": round(sum(ratings) / len(ratings), 1) if ratings else 0,
+            "rated_count": len(ratings),
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P1-3: Prompt Marketplace
+# ═══════════════════════════════════════════════════════════════════
+
+@dataclass
+class MarketPrompt:
+    """A prompt listing in the marketplace."""
+    listing_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    name: str = ""
+    description: str = ""
+    template: str = ""
+    variables: List[str] = field(default_factory=list)
+    category: str = "general"
+    tags: List[str] = field(default_factory=list)
+    author: str = "system"
+    version: str = "1.0"
+    downloads: int = 0
+    rating: float = 0.0
+    reviews: int = 0
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    verified: bool = False
+
+
+class PromptMarketplace:
+    """Community prompt sharing and discovery."""
+
+    def __init__(self):
+        self._listings: Dict[str, MarketPrompt] = {}
+        self._categories = ["analysis", "search", "report", "alarm",
+                           "video", "knowledge", "agent", "general"]
+
+    def publish(self, prompt: MarketPrompt) -> str:
+        """Publish a prompt to the marketplace."""
+        self._listings[prompt.listing_id] = prompt
+        logger.info("Prompt published to market: %s by %s", prompt.name, prompt.author)
+        return prompt.listing_id
+
+    def search(self, query: str = "", category: str = "",
+               tags: List[str] = None, sort_by: str = "rating") -> List[Dict]:
+        """Search the prompt marketplace."""
+        results = list(self._listings.values())
+
+        if query:
+            q = query.lower()
+            results = [p for p in results
+                      if q in p.name.lower() or q in p.description.lower()
+                      or any(q in t.lower() for t in p.tags)]
+        if category:
+            results = [p for p in results if p.category == category]
+        if tags:
+            results = [p for p in results
+                      if any(t in p.tags for t in tags)]
+
+        # Sort
+        if sort_by == "rating":
+            results.sort(key=lambda p: p.rating, reverse=True)
+        elif sort_by == "downloads":
+            results.sort(key=lambda p: p.downloads, reverse=True)
+        elif sort_by == "newest":
+            results.sort(key=lambda p: p.created_at, reverse=True)
+
+        return [
+            {"listing_id": p.listing_id, "name": p.name, "description": p.description,
+             "category": p.category, "tags": p.tags, "author": p.author,
+             "rating": p.rating, "downloads": p.downloads, "verified": p.verified}
+            for p in results[:20]
+        ]
+
+    def get_listing(self, listing_id: str) -> Optional[Dict]:
+        """Get a full marketplace listing."""
+        p = self._listings.get(listing_id)
+        if p:
+            p.downloads += 1
+            return {"name": p.name, "description": p.description, "template": p.template,
+                    "variables": p.variables, "category": p.category, "tags": p.tags,
+                    "author": p.author, "version": p.version, "rating": p.rating}
+        return None
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Marketplace statistics."""
+        return {
+            "total_listings": len(self._listings),
+            "by_category": {c: sum(1 for p in self._listings.values() if p.category == c)
+                          for c in self._categories},
+            "verified_count": sum(1 for p in self._listings.values() if p.verified),
+            "avg_rating": round(sum(p.rating for p in self._listings.values()) / max(len(self._listings), 1), 1),
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P1-3: Enhanced Prompt Engine (with auto-optimization)
+# ═══════════════════════════════════════════════════════════════════
+
+class ABTestResult:
+    """Statistical A/B test result."""
+    def __init__(self, name: str, variant_a: str, variant_b: str,
+                 a_score: float, b_score: float, a_samples: int, b_samples: int):
+        self.name = name
+        self.variant_a = variant_a
+        self.variant_b = variant_b
+        self.a_score = a_score
+        self.b_score = b_score
+        self.a_samples = a_samples
+        self.b_samples = b_samples
+        self.winner = variant_b if b_score > a_score else variant_a
+        self.improvement_pct = round(abs(b_score - a_score) / max(a_score, 0.01) * 100, 1)
+        self.significant = (min(a_samples, b_samples) >= 5) and (abs(b_score - a_score) > 0.05)
+
+
+# Enhanced PromptEngine with P1-3 features
+class PromptEngineV2(PromptEngine):
+    """Enhanced PromptEngine with evaluation, marketplace, and optimization."""
+
+    def __init__(self):
+        super().__init__()
+        self.evaluator = PromptEvaluator()
+        self.marketplace = PromptMarketplace()
+
+        # Seed marketplace with builtin templates
+        for tmpl in BUILTIN_TEMPLATES.values():
+            self.marketplace.publish(MarketPrompt(
+                name=tmpl.name, description=tmpl.description,
+                template=tmpl.template, variables=tmpl.variables,
+                category=tmpl.category, tags=tmpl.tags,
+                verified=True,
+            ))
+
+    def render_and_evaluate(self, name: str, variables: Dict[str, Any],
+                           response: Optional[str] = None) -> Dict[str, Any]:
+        """Render a prompt and auto-evaluate it."""
+        rendered = self.render(name, variables)
+        tmpl_ver = self._active.get(name, "latest")
+        tmpl = self._templates.get(name, {}).get(tmpl_ver)
+
+        result = {"rendered": rendered}
+        if tmpl:
+            ev = self.evaluator.evaluate(tmpl, rendered, response)
+            result["evaluation"] = {
+                "eval_id": ev.eval_id,
+                "scores": ev.scores,
+                "overall_score": ev.overall_score,
+            }
+        return result
+
+    def conclude_ab_test(self, name: str) -> Optional[Dict]:
+        """Conclude an A/B test with statistical analysis."""
+        ab = self._ab_tests.get(name)
+        if not ab:
+            return None
+
+        # Collect evaluation data for both variants
+        a_scores = [ev.overall_score for ev in self.evaluator._evaluations
+                    if ev.version == ab["variant_a"]]
+        b_scores = [ev.overall_score for ev in self.evaluator._evaluations
+                    if ev.version == ab["variant_b"]]
+
+        result = ABTestResult(
+            name=name,
+            variant_a=ab["variant_a"],
+            variant_b=ab["variant_b"],
+            a_score=round(sum(a_scores) / len(a_scores), 3) if a_scores else 0,
+            b_score=round(sum(b_scores) / len(b_scores), 3) if b_scores else 0,
+            a_samples=len(a_scores),
+            b_samples=len(b_scores),
+        )
+
+        # Auto-select winner if significant
+        if result.significant:
+            self._active[name] = result.winner
+            logger.info("A/B test %s concluded: winner=%s (%.1f%% improvement)",
+                       name, result.winner, result.improvement_pct)
+
+        del self._ab_tests[name]
+        return {
+            "name": name, "winner": result.winner,
+            "a_score": result.a_score, "b_score": result.b_score,
+            "improvement_pct": result.improvement_pct,
+            "significant": result.significant,
+        }
+
+    def optimize_prompt(self, name: str) -> Optional[Dict]:
+        """Suggest prompt optimizations based on evaluation data."""
+        scores = [ev.scores for ev in self.evaluator._evaluations
+                 if ev.template_name == name]
+
+        if not scores:
+            return None
+
+        avg_scores = {}
+        for dim in ["clarity", "specificity", "conciseness"]:
+            vals = [s.get(dim, 0) for s in scores]
+            avg_scores[dim] = round(sum(vals) / len(vals), 3)
+
+        suggestions = []
+        if avg_scores.get("clarity", 0) < 0.7:
+            suggestions.append("Add clearer instruction verbs (analyze, describe, explain)")
+        if avg_scores.get("specificity", 0) < 0.7:
+            suggestions.append("Add more structure (steps, sections, format requirements)")
+        if avg_scores.get("conciseness", 0) < 0.7:
+            suggestions.append("Reduce prompt length or remove redundant instructions")
+
+        return {
+            "template": name,
+            "current_scores": avg_scores,
+            "suggestions": suggestions,
+            "evaluation_count": len(scores),
+        }
+
+
+# Global singletons
+prompt_engine = PromptEngineV2()

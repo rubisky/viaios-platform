@@ -928,3 +928,482 @@ async def init_demo_agents():
             registered.append(aid)
 
     return {"registered": registered, "count": len(registered)}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P0-3: Video Structuring Pipeline API
+# ═══════════════════════════════════════════════════════════════════
+
+class VideoPipelineRequest(BaseModel):
+    source_id: str = Field(..., description="Camera or file identifier")
+    source_type: str = Field(default="RTSP", description="RTSP, FILE, GB28181, HLS")
+    uri: str = Field(..., description="Stream URI or file path")
+    camera_id: Optional[str] = None
+    camera_name: Optional[str] = None
+    max_frames: int = Field(default=300, ge=1, le=10000)
+    min_confidence: float = Field(default=0.3, ge=0.0, le=1.0)
+
+class VideoPipelineStatus(BaseModel):
+    pipeline_id: str
+    status: str
+    total_frames: int = 0
+    processed_frames: int = 0
+    total_detections: int = 0
+    unique_tracks: int = 0
+    duration_seconds: float = 0.0
+    evidence_chain_id: Optional[str] = None
+
+
+@router.post("/video/process", tags=["Video Pipeline"])
+async def process_video(request: VideoPipelineRequest):
+    """P0-3: Run the full video structuring pipeline (decode→detect→track→embed→archive)."""
+    from agent_service.core.video_pipeline import get_video_pipeline, VideoSource
+    from agent_service.core.evidence_chain import create_evidence_chain, EvidenceType, record_evidence
+
+    pipeline = get_video_pipeline()
+    source = VideoSource(
+        source_id=request.source_id,
+        source_type=request.source_type,
+        uri=request.uri,
+        camera_id=request.camera_id,
+        camera_name=request.camera_name,
+    )
+
+    # Start evidence chain
+    chain = create_evidence_chain("video_structuring", None)
+    record_evidence(chain.chain_id, EvidenceType.VIDEO_SOURCE, "viaios-agent",
+                    {"source_id": source.source_id, "source_type": source.source_type})
+
+    result = pipeline.process(source)
+
+    # Complete evidence chain
+    from agent_service.core.evidence_chain import get_evidence_registry
+    get_evidence_registry().complete_chain(chain.chain_id)
+
+    return {
+        "pipeline_id": result.pipeline_id,
+        "status": result.status,
+        "total_frames": result.total_frames,
+        "processed_frames": result.processed_frames,
+        "total_detections": result.total_detections,
+        "unique_tracks": result.unique_tracks,
+        "duration_seconds": result.duration_seconds,
+        "stage_results": result.stage_results,
+        "evidence_chain_id": chain.chain_id,
+        "evidence_nodes": chain.node_count,
+    }
+
+
+@router.get("/video/status/{pipeline_id}", tags=["Video Pipeline"])
+async def get_video_status(pipeline_id: str):
+    """Get video pipeline status by ID."""
+    from agent_service.core.evidence_chain import get_evidence_registry
+    registry = get_evidence_registry()
+    chain = registry.get_chain(pipeline_id)  # pipeline_id doubles as chain_id
+    if chain:
+        return {"pipeline_id": pipeline_id, "status": chain.status,
+                "evidence_nodes": chain.node_count, "intact": chain.is_intact}
+    return {"pipeline_id": pipeline_id, "status": "UNKNOWN"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P0-4: Evidence Chain API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/evidence/chains", tags=["Evidence Chain"])
+async def list_evidence_chains(case_id: Optional[str] = None):
+    """List all evidence chains, optionally filtered by case."""
+    from agent_service.core.evidence_chain import get_evidence_registry
+    registry = get_evidence_registry()
+    if case_id:
+        chains = registry.get_chains_for_case(case_id)
+    else:
+        chains = list(registry.list_active_chains())
+        chains.extend([c for c in registry._chains.values() if c.status != "ACTIVE"])
+
+    return {
+        "total": len(chains),
+        "chains": [
+            {
+                "chain_id": c.chain_id,
+                "operation": c.operation,
+                "status": c.status,
+                "nodes": c.node_count,
+                "intact": c.is_intact,
+                "created_at": c.created_at.isoformat(),
+            }
+            for c in chains[:50]
+        ],
+        "stats": registry.stats(),
+    }
+
+
+@router.get("/evidence/chain/{chain_id}", tags=["Evidence Chain"])
+async def get_evidence_chain(chain_id: str):
+    """Get complete evidence chain with all nodes (audit-ready)."""
+    from agent_service.core.evidence_chain import get_evidence_registry
+    registry = get_evidence_registry()
+    chain = registry.get_chain(chain_id)
+    if not chain:
+        raise HTTPException(404, f"Chain not found: {chain_id}")
+    return registry.export_for_audit(chain_id)
+
+
+@router.post("/evidence/chain/{chain_id}/verify", tags=["Evidence Chain"])
+async def verify_evidence_chain(chain_id: str):
+    """Cryptographically verify an evidence chain's integrity."""
+    from agent_service.core.evidence_chain import get_evidence_registry
+    registry = get_evidence_registry()
+    chain = registry.get_chain(chain_id)
+    if not chain:
+        raise HTTPException(404, f"Chain not found: {chain_id}")
+    return chain.verify_full_chain()
+
+
+@router.get("/evidence/stats", tags=["Evidence Chain"])
+async def evidence_stats():
+    """Get evidence chain registry statistics."""
+    from agent_service.core.evidence_chain import get_evidence_registry
+    return get_evidence_registry().stats()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P0-5: Extended Capability Pipelines API
+# ═══════════════════════════════════════════════════════════════════
+
+class CapabilityRequest(BaseModel):
+    image_data: Optional[str] = Field(default=None, description="Base64-encoded image")
+    image_url: Optional[str] = Field(default=None)
+    capability: str = Field(..., description="Capability domain name")
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+@router.get("/capabilities/list", tags=["Capabilities"])
+async def list_capability_pipelines():
+    """List all available capability pipelines and their status."""
+    from agent_service.core.capability_pipelines import get_all_pipelines
+    pipelines = get_all_pipelines()
+    return {
+        "total": len(pipelines),
+        "capabilities": [
+            {
+                "name": name,
+                "loaded": p.loaded,
+                "models": p.model_files,
+                "backend": "onnx" if p.loaded else "fallback",
+            }
+            for name, p in pipelines.items()
+        ],
+    }
+
+
+@router.post("/capabilities/run", tags=["Capabilities"])
+async def run_capability(request: CapabilityRequest):
+    """P0-5: Run any vision AI capability on demand.
+
+    Available capabilities: tracking, segmentation, ocr, gait, pose,
+    behavior, body, bike, vlm, reasoning, embedding
+    (plus existing: detection, face, person_reid, vehicle)
+    """
+    import base64, numpy as np
+    from agent_service.core.capability_pipelines import run_capability
+
+    # Load image
+    if request.image_data:
+        img_bytes = base64.b64decode(request.image_data)
+        img = np.frombuffer(img_bytes, dtype=np.uint8)
+    elif request.image_url:
+        import urllib.request
+        img_bytes = urllib.request.urlopen(request.image_url, timeout=10).read()
+        img = np.frombuffer(img_bytes, dtype=np.uint8)
+    else:
+        # Use a placeholder for testing
+        img = np.zeros((640, 640, 3), dtype=np.uint8)
+
+    result = run_capability(request.capability, img, **request.params)
+    return {
+        "capability": request.capability,
+        **result,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P0-2: Runtime Mesh API — model routing, canary, failover
+# ═══════════════════════════════════════════════════════════════════
+
+class MeshEndpointRequest(BaseModel):
+    endpoint_id: str = Field(...)
+    model_id: str = Field(...)
+    model_name: str = Field(...)
+    model_version: str = Field(default="v1.0")
+    capability: str = Field(...)
+    host: str = Field(default="localhost")
+    port: int = Field(default=8191)
+    runtime: str = Field(default="ONNX")
+    weight: int = Field(default=100, ge=0, le=100)
+    channel: str = Field(default="STABLE")
+    max_connections: int = Field(default=100)
+
+class CanaryRequest(BaseModel):
+    capability: str
+    stable_endpoint_id: str
+    canary_endpoint_id: str
+    traffic_split_pct: int = Field(default=10, ge=1, le=50)
+
+
+@router.get("/mesh/stats", tags=["Runtime Mesh"])
+async def mesh_stats():
+    """P0-2: Get Runtime Mesh global statistics."""
+    from agent_service.core.runtime_mesh import get_runtime_mesh
+    return get_runtime_mesh().get_mesh_stats()
+
+
+@router.get("/mesh/endpoints", tags=["Runtime Mesh"])
+async def list_mesh_endpoints():
+    """List all registered model endpoints with health status."""
+    from agent_service.core.runtime_mesh import get_runtime_mesh
+    mesh = get_runtime_mesh()
+    stats = mesh.get_mesh_stats()
+    return {
+        "total": stats["total_endpoints"],
+        "healthy": stats["healthy_endpoints"],
+        "open_circuits": stats["open_circuits"],
+        "endpoints": stats["endpoints"],
+    }
+
+
+@router.post("/mesh/endpoints", tags=["Runtime Mesh"])
+async def register_endpoint(request: MeshEndpointRequest):
+    """Register a new model endpoint with the Runtime Mesh."""
+    from agent_service.core.runtime_mesh import get_runtime_mesh, ModelEndpoint
+    ep = ModelEndpoint(
+        endpoint_id=request.endpoint_id,
+        model_id=request.model_id,
+        model_name=request.model_name,
+        model_version=request.model_version,
+        capability=request.capability,
+        host=request.host,
+        port=request.port,
+        runtime=request.runtime,
+        weight=request.weight,
+        channel=request.channel,
+        max_connections=request.max_connections,
+    )
+    eid = get_runtime_mesh().register_endpoint(ep)
+    return {"endpoint_id": eid, "status": "registered"}
+
+
+@router.delete("/mesh/endpoints/{endpoint_id}", tags=["Runtime Mesh"])
+async def deregister_endpoint(endpoint_id: str):
+    """Remove an endpoint from the Runtime Mesh."""
+    from agent_service.core.runtime_mesh import get_runtime_mesh
+    get_runtime_mesh().deregister_endpoint(endpoint_id)
+    return {"status": "deregistered"}
+
+
+@router.post("/mesh/route", tags=["Runtime Mesh"])
+async def route_request(capability: str, strategy: Optional[str] = None):
+    """P0-2: Route a capability call through the mesh.
+    Returns the optimal endpoint for the given capability."""
+    from agent_service.core.runtime_mesh import get_runtime_mesh, LBStrategy
+    mesh = get_runtime_mesh()
+    lb = LBStrategy(strategy) if strategy else None
+    result = mesh.route(capability, lb)
+    return {
+        "capability": capability,
+        "endpoint_id": result.endpoint.endpoint_id,
+        "model_name": result.endpoint.model_name,
+        "runtime": result.endpoint.runtime,
+        "strategy": result.strategy.value,
+        "reason": result.reason,
+        "host": result.endpoint.host,
+        "port": result.endpoint.port,
+    }
+
+
+@router.post("/mesh/canary", tags=["Runtime Mesh"])
+async def setup_canary(request: CanaryRequest):
+    """P0-2: Set up canary deployment — split traffic between versions."""
+    from agent_service.core.runtime_mesh import get_runtime_mesh
+    mesh = get_runtime_mesh()
+    mesh.setup_canary(request.capability, request.stable_endpoint_id,
+                      request.canary_endpoint_id, request.traffic_split_pct)
+    return {"status": "canary_configured", **request.dict()}
+
+
+@router.post("/mesh/canary/{endpoint_id}/promote", tags=["Runtime Mesh"])
+async def promote_canary(endpoint_id: str, capability: str):
+    """P0-2: Promote canary to stable — all traffic to new version."""
+    from agent_service.core.runtime_mesh import get_runtime_mesh
+    get_runtime_mesh().promote_canary(capability, endpoint_id)
+    return {"status": "promoted_to_stable", "endpoint_id": endpoint_id}
+
+
+@router.post("/mesh/circuit/{endpoint_id}/reset", tags=["Runtime Mesh"])
+async def reset_circuit(endpoint_id: str):
+    """Manually reset a circuit breaker for an endpoint."""
+    from agent_service.core.runtime_mesh import get_runtime_mesh
+    mesh = get_runtime_mesh()
+    with mesh._lock:
+        if endpoint_id in mesh._endpoints:
+            mesh._endpoints[endpoint_id].circuit_open = False
+            mesh._endpoints[endpoint_id].consecutive_failures = 0
+    return {"status": "circuit_reset", "endpoint_id": endpoint_id}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P1-1: GraphRAG API — three-engine fusion search
+# ═══════════════════════════════════════════════════════════════════
+
+class GraphRAGRequest(BaseModel):
+    query: str = Field(..., description="Natural language query")
+    entity_types: List[str] = Field(default_factory=list)
+    relation_types: List[str] = Field(default_factory=list)
+    max_vector_results: int = Field(default=10, ge=1, le=50)
+    max_graph_hops: int = Field(default=3, ge=1, le=5)
+    mode: str = Field(default="full_rag", description="vector_only, graph_only, hybrid, full_rag")
+
+@router.post("/graphrag/search", tags=["GraphRAG"])
+async def graphrag_search(request: GraphRAGRequest):
+    """P1-1: Execute GraphRAG fusion search (Vector + Graph + LLM)."""
+    from agent_service.core.graphrag import GraphRAGQuery, get_graphrag_engine, SearchMode
+    engine = get_graphrag_engine()
+    query = GraphRAGQuery(
+        text=request.query,
+        entity_types=request.entity_types,
+        relation_types=request.relation_types,
+        max_vector_results=request.max_vector_results,
+        max_graph_hops=request.max_graph_hops,
+        mode=SearchMode(request.mode),
+    )
+    result = engine.search(query)
+    return {
+        "query": result.query,
+        "mode": result.mode,
+        "answer": result.answer,
+        "confidence": result.confidence,
+        "reasoning_steps": result.reasoning_steps,
+        "vector_matches": len(result.vector_matches),
+        "graph_matches": len(result.graph_matches),
+        "sources": result.sources[:10],
+        "latency_ms": result.latency_ms,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P1-2: Workflow DSL API — execute YAML workflows
+# ═══════════════════════════════════════════════════════════════════
+
+class WorkflowExecuteRequest(BaseModel):
+    yaml_definition: str = Field(..., description="Workflow DSL YAML definition")
+    variables: Dict[str, Any] = Field(default_factory=dict)
+    workflow_name: str = Field(default="")
+
+@router.get("/workflow/templates", tags=["Workflow DSL"])
+async def list_workflow_templates():
+    """P1-2: List built-in workflow DSL templates."""
+    from agent_service.core.workflow_dsl import BUILTIN_WORKFLOWS
+    return {"templates": list(BUILTIN_WORKFLOWS.keys())}
+
+@router.get("/workflow/template/{name}", tags=["Workflow DSL"])
+async def get_workflow_template(name: str):
+    """Get a built-in workflow DSL template."""
+    from agent_service.core.workflow_dsl import BUILTIN_WORKFLOWS
+    if name not in BUILTIN_WORKFLOWS:
+        raise HTTPException(404, f"Template not found: {name}")
+    return {"name": name, "yaml": BUILTIN_WORKFLOWS[name]}
+
+@router.post("/workflow/execute", tags=["Workflow DSL"])
+async def execute_workflow(request: WorkflowExecuteRequest):
+    """P1-2: Parse and execute a Workflow DSL definition."""
+    from agent_service.core.workflow_dsl import WorkflowParser, WorkflowExecutor
+    wf = WorkflowParser.parse(request.yaml_definition)
+    executor = WorkflowExecutor()
+    result = executor.execute(wf, request.variables)
+    return {
+        "workflow_id": result.workflow_id,
+        "workflow_name": result.workflow_name,
+        "status": result.status,
+        "step_count": len(result.step_results),
+        "completed_steps": sum(1 for s in result.step_results.values() if s.status.value == "completed"),
+        "failed_steps": sum(1 for s in result.step_results.values() if s.status.value == "failed"),
+        "total_latency_ms": result.total_latency_ms,
+        "step_results": {
+            sid: {"status": sr.status.value, "output": str(sr.output)[:200]}
+            for sid, sr in result.step_results.items()
+        },
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P1-4: Evaluator + Governance API
+# ═══════════════════════════════════════════════════════════════════
+
+class EvaluateRequest(BaseModel):
+    agent_id: str
+    agent_name: str = ""
+    task: str
+    output: Any
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+@router.post("/evaluator/evaluate", tags=["Evaluator"])
+async def evaluate_output(request: EvaluateRequest):
+    """P1-4: Evaluate an agent output across 5 quality dimensions."""
+    from agent_service.core.evaluator import get_evaluator
+    result = get_evaluator().evaluate(
+        agent_id=request.agent_id,
+        agent_name=request.agent_name,
+        task=request.task,
+        output=request.output,
+        context=request.context,
+    )
+    return result.to_dict()
+
+@router.get("/governance/policies", tags=["Governance"])
+async def list_policies():
+    """P1-4: List all governance policies."""
+    from agent_service.core.governance import get_governance
+    return {"policies": get_governance().list_policies()}
+
+@router.get("/governance/stats", tags=["Governance"])
+async def governance_stats():
+    """P1-4: Get governance statistics."""
+    from agent_service.core.governance import get_governance
+    return get_governance().stats()
+
+@router.get("/governance/audit", tags=["Governance"])
+async def governance_audit(limit: int = 50):
+    """Get recent governance audit log entries."""
+    from agent_service.core.governance import get_governance
+    return {"entries": get_governance().get_audit_log(limit)}
+
+class GovernanceCheckRequest(BaseModel):
+    agent_id: str = "test-agent"
+    agent_type: str = "search"
+    user_id: str = "test-user"
+    tenant_id: str = "default"
+    role: str = "OPERATOR"
+    action: str = "search"
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+@router.post("/governance/check", tags=["Governance"])
+async def governance_check(request: GovernanceCheckRequest):
+    """P1-4: Pre-flight governance check before agent execution."""
+    from agent_service.core.governance import get_governance, GovernanceContext
+    gov = get_governance()
+    ctx = GovernanceContext(
+        agent_id=request.agent_id,
+        agent_type=request.agent_type,
+        user_id=request.user_id,
+        tenant_id=request.tenant_id,
+        role=request.role,
+        action=request.action,
+        params=request.params,
+    )
+    decision = gov.evaluate_pre(ctx)
+    return {
+        "allowed": decision.allowed,
+        "action": decision.action.value,
+        "triggered_rules": decision.triggered_rules,
+        "reasons": decision.reasons,
+    }
