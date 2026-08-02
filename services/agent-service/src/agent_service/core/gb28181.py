@@ -374,49 +374,121 @@ class GB28181Server:
             },
         }
 
-    # ── Internal SIP Methods (stubs for production) ─────────────
+    # ── SIP Transport Layer ────────────────────────────────────
+
+    def _sip_send(self, device: GBDevice, message: str):
+        """Send SIP message via UDP to a device."""
+        try:
+            sock = self._get_sip_socket()
+            addr = (device.ip_address, device.port)
+            sock.sendto(message.encode('utf-8'), addr)
+            self._stats.sip_requests_handled += 1
+            logger.debug("SIP → %s:%d [%d bytes]", device.ip_address, device.port, len(message))
+        except Exception as e:
+            logger.warning("SIP send failed [%s:%d]: %s", device.ip_address, device.port, e)
+
+    def _get_sip_socket(self):
+        """Get or create the SIP UDP socket."""
+        if not hasattr(self, '_sip_socket'):
+            import socket
+            self._sip_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._sip_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                self._sip_socket.bind(('0.0.0.0', self.sip_port))
+                logger.info("SIP socket bound to port %d", self.sip_port)
+            except Exception:
+                logger.warning("SIP port %d in use, using ephemeral", self.sip_port)
+        return self._sip_socket
+
+    def _sip_build_message(self, method: str, device: GBDevice,
+                          headers: Dict[str, str], body: str = "") -> str:
+        """Build a SIP message with proper formatting."""
+        call_id = f"{int(time.time()*1000)}@{self.sip_id}"
+        cseq = int(time.time()) % 100000
+
+        msg = f"{method} sip:{device.device_id}@{device.ip_address}:{device.port} SIP/2.0\r\n"
+        msg += f"Via: SIP/2.0/UDP 0.0.0.0:{self.sip_port};rport;branch=z9hG4bK{call_id}\r\n"
+        msg += f"From: <sip:{self.sip_id}@{self.sip_domain}>;tag={self.sip_id}\r\n"
+        msg += f"To: <sip:{device.device_id}@{device.ip_address}>\r\n"
+        msg += f"Call-ID: {call_id}\r\n"
+        msg += f"CSeq: {cseq} {method}\r\n"
+        msg += f"Max-Forwards: 70\r\n"
+        msg += f"User-Agent: VIAIOS-GB28181/4.0\r\n"
+
+        for key, value in headers.items():
+            msg += f"{key}: {value}\r\n"
+
+        if body:
+            msg += f"Content-Length: {len(body.encode('utf-8'))}\r\n"
+            msg += f"\r\n{body}"
+        else:
+            msg += f"Content-Length: 0\r\n"
+
+        msg += "\r\n"
+        return msg
+
+    def _sip_build_sdp(self, stream: GBStream) -> str:
+        """Build SDP body for video stream."""
+        sdp = (
+            "v=0\r\n"
+            f"o={self.sip_id} 0 0 IN IP4 0.0.0.0\r\n"
+            "s=Play\r\n"
+            "c=IN IP4 0.0.0.0\r\n"
+            "t=0 0\r\n"
+            f"m=video {stream.rtp_port} RTP/AVP 96 97\r\n"
+            f"a=rtpmap:96 {stream.codec}/90000\r\n"
+            "a=rtpmap:97 MPEG4/90000\r\n"
+            "a=recvonly\r\n"
+            "a=fmtp:96 profile-level-id=42e01e; packetization-mode=1\r\n"
+        )
+        return sdp
+
+    # ── SIP Methods ─────────────────────────────────────────────
 
     def _send_sip_invite(self, device: GBDevice, stream: GBStream):
-        """Send SIP INVITE to start media stream."""
-        # In production: construct and send SIP INVITE message
-        invite = (
-            f"INVITE sip:{stream.channel_id}@{device.ip_address}:{device.port} SIP/2.0\r\n"
-            f"Via: SIP/2.0/UDP 0.0.0.0:{self.sip_port}\r\n"
-            f"From: <sip:{self.sip_id}@{self.sip_domain}>\r\n"
-            f"To: <sip:{device.device_id}@{device.ip_address}>\r\n"
-            f"Call-ID: {stream.stream_id}\r\n"
-            f"CSeq: 1 INVITE\r\n"
-            f"Subject: {device.device_id}:{stream.channel_id},{self.sip_id}\r\n"
-            f"Content-Type: application/sdp\r\n"
-            f"\r\n"
-            f"v=0\r\n"
-            f"o={self.sip_id} 0 0 IN IP4 0.0.0.0\r\n"
-            f"s=Play\r\n"
-            f"c=IN IP4 0.0.0.0\r\n"
-            f"t=0 0\r\n"
-            f"m=video {stream.rtp_port} RTP/AVP 96\r\n"
-            f"a=rtpmap:96 {stream.codec}/90000\r\n"
-            f"a=recvonly\r\n"
-        )
-        logger.debug("SIP INVITE:\n%s", invite)
-        self._stats.sip_requests_handled += 1
+        """Send SIP INVITE to start real-time media stream."""
+        sdp = self._sip_build_sdp(stream)
+        headers = {
+            "Subject": f"{device.device_id}:{stream.channel_id},{self.sip_id}",
+            "Content-Type": "application/sdp",
+        }
+        msg = self._sip_build_message("INVITE", device, headers, sdp)
+        self._sip_send(device, msg)
 
     def _send_sip_bye(self, device: GBDevice, stream: GBStream):
         """Send SIP BYE to end media stream."""
-        self._stats.sip_requests_handled += 1
+        msg = self._sip_build_message("BYE", device, {})
+        self._sip_send(device, msg)
+
+    def _send_sip_ack(self, device: GBDevice, stream: GBStream):
+        """Send SIP ACK to confirm session establishment."""
+        msg = self._sip_build_message("ACK", device, {})
+        self._sip_send(device, msg)
+
+    def _send_sip_register(self, device: GBDevice):
+        """Send SIP REGISTER to a camera (for server-push registration)."""
+        headers = {
+            "Expires": str(GB28181_REGISTER_EXPIRES),
+            "Contact": f"<sip:{self.sip_id}@{self.sip_domain}>",
+        }
+        msg = self._sip_build_message("REGISTER", device, headers)
+        self._sip_send(device, msg)
 
     def _send_ptz_command(self, device: GBDevice, cmd: PTZCommand):
-        """Send MANSCDP PTZ control XML."""
+        """Send MANSCDP PTZ control XML via SIP MESSAGE."""
         xml = (
-            '<?xml version="1.0"?>\n'
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<Control>\n'
             f'<CmdType>DeviceControl</CmdType>\n'
             f'<SN>{int(time.time())}</SN>\n'
             f'<DeviceID>{cmd.device_id}</DeviceID>\n'
             f'<PTZCmd>{self._ptz_code(cmd.command, cmd.speed, cmd.preset_id)}</PTZCmd>\n'
+            f'<Speed>{cmd.speed}</Speed>\n'
             '</Control>'
         )
-        logger.debug("PTZ XML:\n%s", xml)
+        headers = {"Content-Type": "Application/MANSCDP+xml"}
+        msg = self._sip_build_message("MESSAGE", device, headers, xml)
+        self._sip_send(device, msg)
 
     @staticmethod
     def _ptz_code(command: str, speed: int, preset: int) -> str:
