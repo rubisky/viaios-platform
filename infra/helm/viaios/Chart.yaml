@@ -1,0 +1,40 @@
+apiVersion: v2
+name: viaios
+description: VIAIOS Enterprise 4.0 LTS — Umbrella Helm Chart for full platform deployment
+type: application
+version: 4.0.0
+appVersion: "4.0.0-LTS"
+keywords:
+  - viaios
+  - ai
+  - video-surveillance
+  - agent-os
+  - knowledge-graph
+maintainers:
+  - name: VIAIOS Team
+    email: dev@viaios.com
+dependencies:
+  - name: postgresql
+    version: "15.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: kafka
+    version: "28.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled
+  - name: redis
+    version: "19.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: milvus
+    version: "4.x"
+    repository: https://milvus-io.github.io/milvus-helm
+    condition: milvus.enabled
+  - name: minio
+    version: "5.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: minio.enabled
+  - name: clickhouse
+    version: "6.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: clickhouse.enabled

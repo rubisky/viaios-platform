@@ -1,0 +1,355 @@
+# ═══════════════════════════════════════════════════════════════════
+# VIAIOS Enterprise 4.0 LTS — Production Helm Values
+# ═══════════════════════════════════════════════════════════════════
+# Usage:
+#   helm dependency update && helm install viaios . -f values-prod.yaml
+#   helm upgrade viaios . --set global.env=production
+
+global:
+  env: production
+  imageRegistry: viaios
+  imageTag: "4.0.0"
+  pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  storageClass: standard
+  # Common annotations for all pods
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/actuator/prometheus"
+
+# ═══════════════════════════════════════════════════════════════════
+# Infrastructure Dependencies
+# ═══════════════════════════════════════════════════════════════════
+
+postgresql:
+  enabled: true
+  auth:
+    username: viaios
+    password: viaios123
+    database: viaios
+  primary:
+    persistence:
+      size: 100Gi
+    resources:
+      requests: { cpu: 500m, memory: 1Gi }
+      limits: { cpu: 2, memory: 4Gi }
+
+kafka:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    size: 50Gi
+  resources:
+    requests: { cpu: 500m, memory: 2Gi }
+    limits: { cpu: 2, memory: 4Gi }
+
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 10Gi
+
+milvus:
+  enabled: true
+  mode: standalone
+  persistence:
+    size: 200Gi
+
+minio:
+  enabled: true
+  mode: standalone
+  auth:
+    rootUser: minioadmin
+    rootPassword: minioadmin
+  persistence:
+    size: 500Gi
+
+clickhouse:
+  enabled: true
+  auth:
+    username: viaios
+    password: viaios123
+  persistence:
+    size: 200Gi
+
+# ═══════════════════════════════════════════════════════════════════
+# VIAIOS Services
+# ═══════════════════════════════════════════════════════════════════
+
+# ── API Gateway ─────────────────────────────────────────────────────
+gateway:
+  enabled: true
+  replicaCount: 2
+  image: viaios/api-gateway
+  service:
+    type: ClusterIP
+    port: 8080
+  ingress:
+    enabled: true
+    host: viaios.example.com
+    tls: []
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPU: 70
+  probes:
+    liveness:
+      path: /actuator/health
+      initialDelaySeconds: 30
+      periodSeconds: 15
+    readiness:
+      path: /actuator/health
+      initialDelaySeconds: 10
+      periodSeconds: 5
+  env:
+    REDIS_HOST: viaios-redis-master
+    JWT_SECRET: viaios-jwt-secret-placeholder
+
+# ── Control Center ──────────────────────────────────────────────────
+controlCenter:
+  enabled: true
+  replicaCount: 2
+  image: viaios/control-center
+  service: { type: ClusterIP, port: 8081 }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+  probes:
+    liveness: { path: /actuator/health, initialDelaySeconds: 45, periodSeconds: 15 }
+    readiness: { path: /actuator/health, initialDelaySeconds: 15, periodSeconds: 5 }
+  env:
+    DB_URL: jdbc:postgresql://viaios-postgresql:5432/viaios
+    DB_USER: viaios
+    DB_PASS: viaios123
+
+# ── AI Kernel ───────────────────────────────────────────────────────
+aiKernel:
+  enabled: true
+  replicaCount: 2
+  image: viaios/ai-kernel
+  service: { type: ClusterIP, port: 8082 }
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { cpu: 2, memory: 4Gi }
+  nodeSelector:
+    accelerator: gpu  # Schedule on GPU nodes
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  probes:
+    liveness: { path: /actuator/health, initialDelaySeconds: 60, periodSeconds: 20 }
+    readiness: { path: /actuator/health, initialDelaySeconds: 20, periodSeconds: 5 }
+  env:
+    CUDA_VISIBLE_DEVICES: "0"
+    ONNX_PROVIDERS: CUDAExecutionProvider,CPUExecutionProvider
+    MODELS_DIR: /opt/viaios/models
+  volumes:
+    - name: models
+      persistentVolumeClaim:
+        claimName: viaios-models-pvc
+
+# ── Agent Service (Python) ──────────────────────────────────────────
+agentService:
+  enabled: true
+  replicaCount: 2
+  image: viaios/agent-service
+  service: { type: ClusterIP, port: 8191 }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 2Gi }
+  probes:
+    liveness: { path: /health, initialDelaySeconds: 45, periodSeconds: 15 }
+    readiness: { path: /health, initialDelaySeconds: 15, periodSeconds: 5 }
+  env:
+    LLM_PROVIDER: deepseek
+    DEEPSEEK_API_KEY: ""
+    MILVUS_HOST: viaios-milvus
+    CLICKHOUSE_HOST: viaios-clickhouse
+
+# ── Capability Service (Python) ─────────────────────────────────────
+capabilityService:
+  enabled: true
+  replicaCount: 2
+  image: viaios/capability-service
+  service: { type: ClusterIP, port: 8192 }
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { cpu: 2, memory: 4Gi }
+  nodeSelector: { accelerator: gpu }
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+  env:
+    ONNX_PROVIDERS: CUDAExecutionProvider,CPUExecutionProvider
+
+# ── Knowledge Service (Python) ──────────────────────────────────────
+knowledgeService:
+  enabled: true
+  replicaCount: 2
+  image: viaios/knowledge-service
+  service: { type: ClusterIP, port: 8193 }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 2Gi }
+  env:
+    AGE_HOST: viaios-postgresql
+    AGE_PORT: "5432"
+
+# ── Video Access (Cameras) ──────────────────────────────────────────
+videoAccess:
+  enabled: true
+  replicaCount: 2
+  image: viaios/video-access
+  service: { type: ClusterIP, port: 8083 }
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { cpu: 2, memory: 4Gi }
+  env:
+    MAX_STREAMS: "100"
+    STREAM_PROTOCOLS: "RTSP,GB28181,HLS"
+
+# ── Analysis Service ────────────────────────────────────────────────
+analysis:
+  enabled: true
+  replicaCount: 2
+  image: viaios/analysis
+  service: { type: ClusterIP, port: 8084 }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 2Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPU: 70
+
+# ── Search Service ──────────────────────────────────────────────────
+search:
+  enabled: true
+  replicaCount: 2
+  image: viaios/search
+  service: { type: ClusterIP, port: 8085 }
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { cpu: 2, memory: 4Gi }
+  env:
+    MILVUS_HOST: viaios-milvus
+
+# ── Case Service ────────────────────────────────────────────────────
+caseService:
+  enabled: true
+  replicaCount: 2
+  image: viaios/case-service
+  service: { type: ClusterIP, port: 8086 }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+# ── Report Service ──────────────────────────────────────────────────
+reportService:
+  enabled: true
+  replicaCount: 2
+  image: viaios/report-service
+  service: { type: ClusterIP, port: 8087 }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+# ── Alarm Service ───────────────────────────────────────────────────
+alarmService:
+  enabled: true
+  replicaCount: 2
+  image: viaios/alarm-service
+  service: { type: ClusterIP, port: 8088 }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+  env:
+    KAFKA_BOOTSTRAP: viaios-kafka:9092
+
+# ── Workflow Service ────────────────────────────────────────────────
+workflowService:
+  enabled: true
+  replicaCount: 2
+  image: viaios/workflow-service
+  service: { type: ClusterIP, port: 8089 }
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1, memory: 1Gi }
+
+# ── Frontend ────────────────────────────────────────────────────────
+frontend:
+  enabled: true
+  replicaCount: 2
+  image: viaios/frontend
+  service: { type: ClusterIP, port: 3000 }
+  ingress:
+    enabled: true
+    host: viaios.example.com
+    path: /
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+
+# ═══════════════════════════════════════════════════════════════════
+# Monitoring Stack
+# ═══════════════════════════════════════════════════════════════════
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: 30d
+    resources:
+      requests: { cpu: 500m, memory: 2Gi }
+      limits: { cpu: 2, memory: 8Gi }
+    persistence:
+      size: 100Gi
+  grafana:
+    enabled: true
+    adminPassword: viaios-admin-2024
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+    persistence:
+      size: 10Gi
+    dashboards:
+      serviceOverview: true
+      kernelMetrics: true
+      agentPerformance: true
+  jaeger:
+    enabled: true
+    resources: { requests: { cpu: 250m, memory: 512Mi } }
+  alertmanager:
+    enabled: true
+    config:
+      slackWebhook: ""
+      opsEmail: ""
+
+# ═══════════════════════════════════════════════════════════════════
+# Network Policies
+# ═══════════════════════════════════════════════════════════════════
+
+networkPolicies:
+  enabled: true
+  # Default deny all ingress, allow specific service-to-service communication
+  controlPlaneNamespace: viaios-system
+
+# ═══════════════════════════════════════════════════════════════════
+# Backup & Disaster Recovery
+# ═══════════════════════════════════════════════════════════════════
+
+backup:
+  enabled: false
+  schedule: "0 2 * * *"  # Daily at 2am
+  retentionDays: 30
+  destination: s3://viaios-backups
+  databases: ["postgresql", "clickhouse"]

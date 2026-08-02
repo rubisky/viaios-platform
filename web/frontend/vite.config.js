@@ -22,6 +22,7 @@ export default defineConfig({
     },
     build: {
         rollupOptions: {
+            external: ['cesium'], // Optional: Cesium 3D globe — loaded at runtime
             output: {
                 manualChunks: {
                     // Framework core (~150KB) — cached across all pages

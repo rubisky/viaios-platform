@@ -1,0 +1,70 @@
+# VIAIOS Production Override Values
+# Usage: helm install viaios . -f values.yaml -f values-prod.yaml
+
+global:
+  env: production
+  imageTag: "4.0.0"
+  pullPolicy: IfNotPresent
+
+# Production scaling
+gateway:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPU: 60
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { cpu: 2, memory: 2Gi }
+  ingress:
+    host: viaios.yourdomain.com
+    tls:
+      - secretName: viaios-tls
+
+aiKernel:
+  replicaCount: 2
+  resources:
+    requests: { cpu: 1, memory: 2Gi }
+    limits: { cpu: 4, memory: 8Gi }
+  env:
+    CUDA_VISIBLE_DEVICES: "0,1"
+    ONNX_PROVIDERS: CUDAExecutionProvider,CPUExecutionProvider
+
+agentService:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+
+capabilityService:
+  replicaCount: 2
+  resources:
+    requests: { cpu: 1, memory: 2Gi }
+    limits: { cpu: 4, memory: 8Gi }
+
+videoAccess:
+  replicaCount: 2
+  resources:
+    requests: { cpu: 1, memory: 2Gi }
+    limits: { cpu: 4, memory: 8Gi }
+
+frontend:
+  replicaCount: 3
+  ingress:
+    host: viaios.yourdomain.com
+
+monitoring:
+  enabled: true
+  prometheus:
+    retention: 90d
+    persistence:
+      size: 500Gi
+  grafana:
+    adminPassword: ""  # Set via sealed secrets
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retentionDays: 90
