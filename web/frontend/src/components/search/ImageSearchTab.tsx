@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Upload, Button, Row, Col, Card, Typography, message, Image, Space, Badge, Tag, Tabs, Empty } from 'antd';
-import { InboxOutlined, SearchOutlined, DeleteOutlined, AimOutlined, CameraOutlined, EyeOutlined } from '@ant-design/icons';
+import { Upload, Button, Row, Col, Card, Typography, message, Image, Badge, Tag } from 'antd';
+import { InboxOutlined, SearchOutlined, DeleteOutlined, AimOutlined, CameraOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import SearchFilters from './SearchFilters';
 import ResultGallery from './ResultGallery';
@@ -8,7 +8,7 @@ import ResultDetailModal from './ResultDetailModal';
 import { apiPost } from '../../api/client';
 import type { SearchResult, SearchFilters as SearchFiltersType } from '../../types/search';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { Dragger } = Upload;
 
 interface Props {
@@ -38,7 +38,7 @@ const ImageSearchTab: React.FC<Props> = ({
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [realAI, setRealAI] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [apiResponse, setApiResponse] = useState<any>(null);
+  const [, setApiResponse] = useState<any>(null);
 
   const handleSearch = async () => {
     if (!fileList.length) { message.warning('请先上传目标图片'); return; }

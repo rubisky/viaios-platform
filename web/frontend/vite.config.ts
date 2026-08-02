@@ -21,4 +21,24 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Framework core (~150KB) — cached across all pages
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // UI library (~1MB+) — cached across all pages
+          'vendor-antd': ['antd', '@ant-design/icons'],
+          // Charts (~1MB) — only Dashboard/Analytics pages load this
+          'vendor-echarts': ['echarts', 'echarts-for-react'],
+          // Maps (~200KB) — only CameraDetail/Trajectory pages load
+          'vendor-leaflet': ['leaflet', 'react-leaflet'],
+          // Flow graph (~500KB) — only Workflow/Graph pages load
+          'vendor-flow': ['reactflow'],
+          // Video streaming (~200KB) — only CameraDetail page loads
+          'vendor-hls': ['hls.js'],
+        },
+      },
+    },
+  },
 });
