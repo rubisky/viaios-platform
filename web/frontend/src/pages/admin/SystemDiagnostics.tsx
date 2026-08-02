@@ -1,7 +1,7 @@
 /** System Diagnostics — Real-time health monitoring dashboard (P2-5) */
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Progress, Timeline, Badge, message, Descriptions } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, DashboardOutlined, ThunderboltOutlined, ApiOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Timeline, Badge } from 'antd';
+import { ReloadOutlined, DashboardOutlined, ThunderboltOutlined, ApiOutlined } from '@ant-design/icons';
 import { apiGet } from '../../api/client';
 
 interface ServiceStatus { name: string; port: number; status: string; group: string; }
@@ -81,14 +81,14 @@ const SystemDiagnostics: React.FC = () => {
         <Col xs={24} lg={10}>
           <Card title={<span style={{ color: '#e0e0e0' }}><ThunderboltOutlined /> Health Timeline</span>} size="small"
             style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
-            <Timeline items={history.slice(-10).map((h, i) => ({
+            <Timeline items={history.slice(-10).map(h => ({
               color: h.up === h.total ? 'green' : 'red',
               children: <span style={{ color: '#a0a0a0', fontSize: 12 }}>{h.time} — {h.up}/{h.total} UP</span>,
             }))} />
           </Card>
           {kernel && (
             <Card title="Kernel Managers" size="small" style={{ background: '#16213e', borderColor: '#2a2a4a', marginTop: 16 }}>
-              {Object.entries(kernel.managers || {}).map(([name, info]) => (
+              {Object.entries(kernel.managers || {}).map(([name]) => (
                 <div key={name} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                   <span style={{ color: '#a0a0a0' }}>{name}</span>
                   <Badge status="success" text="UP" />
