@@ -1708,6 +1708,35 @@ async def memory_recall(query: str = "", limit: int = 10):
     from agent_service.core.memory_enhanced import get_memory
     return get_memory().recall(query, limit)
 
+# ═══════════════════════════════════════════════════════════════════
+# Prompt OS API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/prompt-os/templates", tags=["Prompt OS"])
+async def prompt_templates():
+    """List all prompt templates."""
+    from agent_service.core.prompt_os import prompt_engine
+    return {"templates": prompt_engine.list_templates()}
+
+@router.get("/prompt-os/market/stats", tags=["Prompt OS"])
+async def prompt_market_stats():
+    """Get prompt marketplace statistics."""
+    from agent_service.core.prompt_os import prompt_engine
+    return prompt_engine.marketplace.get_stats()
+
+@router.get("/prompt-os/market/search", tags=["Prompt OS"])
+async def prompt_market_search(q: str = "", category: str = ""):
+    """Search the prompt marketplace."""
+    from agent_service.core.prompt_os import prompt_engine
+    return {"results": prompt_engine.marketplace.search(query=q, category=category)}
+
+@router.get("/prompt-os/stats", tags=["Prompt OS"])
+async def prompt_stats():
+    """Get Prompt OS statistics."""
+    from agent_service.core.prompt_os import prompt_engine
+    return prompt_engine.get_stats()
+
+
 @router.get("/memory/stats", tags=["Memory"])
 async def memory_stats():
     """Get memory manager statistics."""
