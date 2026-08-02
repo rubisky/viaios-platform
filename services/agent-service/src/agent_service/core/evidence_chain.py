@@ -258,9 +258,66 @@ class EvidenceChainRegistry:
             }
 
 
+# ── Persistence Layer ─────────────────────────────────────────────
+
+class EvidencePersistence:
+    """Persist evidence chains to disk and database for audit compliance."""
+
+    def __init__(self, base_path: str = "/opt/viaios/data/evidence"):
+        self.base_path = base_path
+        os.makedirs(base_path, exist_ok=True)
+
+    def save(self, chain: EvidenceChain):
+        """Persist a chain to disk as JSON."""
+        chain_dir = os.path.join(self.base_path, chain.chain_id[:2], chain.chain_id)
+        os.makedirs(chain_dir, exist_ok=True)
+        path = os.path.join(chain_dir, "chain.json")
+        with open(path, "w") as f:
+            json.dump({
+                "chain_id": chain.chain_id,
+                "case_id": chain.case_id,
+                "operation": chain.operation,
+                "status": chain.status,
+                "created_at": chain.created_at.isoformat(),
+                "completed_at": chain.completed_at.isoformat() if chain.completed_at else None,
+                "nodes": [
+                    {
+                        "sequence": n.sequence,
+                        "type": n.evidence_type.value,
+                        "timestamp": n.timestamp.isoformat(),
+                        "actor": n.actor,
+                        "data": n.data,
+                        "checksum": n.checksum,
+                        "previous_checksum": n.previous_checksum,
+                    }
+                    for n in chain.nodes
+                ],
+            }, f, indent=2, default=str)
+        return path
+
+    def load(self, chain_id: str) -> Optional[Dict]:
+        """Load a chain from disk."""
+        chain_dir = os.path.join(self.base_path, chain_id[:2], chain_id)
+        path = os.path.join(chain_dir, "chain.json")
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                return json.load(f)
+        return None
+
+    def list_chains(self, case_id: str = None) -> List[str]:
+        """List persisted chain IDs."""
+        chains = []
+        for root, dirs, files in os.walk(self.base_path):
+            for fn in files:
+                if fn == "chain.json":
+                    chains.append(os.path.basename(os.path.dirname(root)))
+        return chains
+
+
 # ── Convenience Helpers ────────────────────────────────────────────
 
 _registry: Optional[EvidenceChainRegistry] = None
+_persistence: Optional[EvidencePersistence] = None
 
 
 def get_evidence_registry() -> EvidenceChainRegistry:
@@ -271,15 +328,60 @@ def get_evidence_registry() -> EvidenceChainRegistry:
     return _registry
 
 
+def get_evidence_persistence() -> EvidencePersistence:
+    """Get or create the evidence persistence layer."""
+    global _persistence
+    if _persistence is None:
+        _persistence = EvidencePersistence()
+    return _persistence
+
+
 def record_evidence(chain_id: str, evidence_type: EvidenceType,
                     actor: str, data: Dict[str, Any]) -> EvidenceNode:
-    """Quick one-liner to record evidence to a chain."""
-    return get_evidence_registry().add_node(chain_id, evidence_type, actor, data)
+    """Quick one-liner to record evidence to a chain with auto-persistence."""
+    node = get_evidence_registry().add_node(chain_id, evidence_type, actor, data)
+    # Auto-persist on every 10th node
+    chain = get_evidence_registry().get_chain(chain_id)
+    if chain and chain.node_count % 10 == 0:
+        get_evidence_persistence().save(chain)
+    return node
 
 
 def create_evidence_chain(operation: str, case_id: str = None) -> EvidenceChain:
     """Quick one-liner to create a new evidence chain."""
     return get_evidence_registry().create_chain(operation, case_id)
+
+
+# ── Integration Hooks (called from video_pipeline, agent handlers, etc.) ──
+
+def on_video_processed(pipeline_id: str, source_id: str, metadata: Dict):
+    """Hook: called when video processing completes."""
+    chain = create_evidence_chain("video_structuring")
+    record_evidence(chain.chain_id, EvidenceType.VIDEO_SOURCE, "viaios-video",
+                    {"pipeline_id": pipeline_id, "source_id": source_id, **metadata})
+    record_evidence(chain.chain_id, EvidenceType.ALGORITHM, "viaios-video",
+                    {"algorithm": "video_structuring_v1", "stages": ["decode", "detect", "track", "embed", "archive"]})
+    get_evidence_registry().complete_chain(chain.chain_id)
+    get_evidence_persistence().save(chain)
+    return chain.chain_id
+
+
+def on_agent_action(agent_id: str, action: str, input_data: Dict, output_data: Dict):
+    """Hook: called when an agent performs an action."""
+    chain = create_evidence_chain(f"agent_{action}")
+    record_evidence(chain.chain_id, EvidenceType.AGENT_PROCESS, agent_id,
+                    {"action": action, "input": input_data, "output": output_data})
+    return chain.chain_id
+
+
+def on_report_generated(report_id: str, agent_id: str, findings: List[str]):
+    """Hook: called when a report is generated."""
+    chain = create_evidence_chain("agent_report")
+    record_evidence(chain.chain_id, EvidenceType.REPORT_GENERATED, agent_id,
+                    {"report_id": report_id, "findings": findings})
+    get_evidence_registry().complete_chain(chain.chain_id)
+    get_evidence_persistence().save(chain)
+    return chain.chain_id
 
 
 # ── Pre-defined Chain Templates ────────────────────────────────────

@@ -1,256 +1,122 @@
 /**
- * CesiumTrajectory — 3D Globe trajectory visualization (P1-5)
- *
- * Replaces 2D Leaflet map with Cesium 3D globe.
- * Falls back gracefully if cesium package is not installed.
- *
- * Install: npm install cesium (optional — falls back to 2D indicator)
+ * CesiumTrajectory — 3D Globe trajectory visualization
+ * Uses CesiumJS for real 3D terrain rendering with camera fly-to animation.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Card, Button, Space, Slider, Select, Tag, Spin } from 'antd';
-import {
-  PlayCircleOutlined, PauseCircleOutlined, AimOutlined,
-  SwapOutlined, GlobalOutlined,
-} from '@ant-design/icons';
+import { PlayCircleOutlined, PauseCircleOutlined, AimOutlined, SwapOutlined, GlobalOutlined } from '@ant-design/icons';
+import * as Cesium from 'cesium';
 
 // ── Types ─────────────────────────────────────────────────────────
 
 interface TrajectoryPoint {
-  id: string;
-  targetId: string;
-  cameraId?: string;
-  cameraName?: string;
-  longitude: number;
-  latitude: number;
-  altitude?: number;
-  timestamp: string;
-  confidence?: number;
-  label?: string;
+  id: string; targetId: string; cameraId?: string; cameraName?: string;
+  longitude: number; latitude: number; altitude?: number; timestamp: string; label?: string;
 }
 
-interface TrajectoryTrack {
-  targetId: string;
-  color: string;
-  points: TrajectoryPoint[];
-}
+interface TrajectoryTrack { targetId: string; color: string; points: TrajectoryPoint[]; }
 
-interface Props {
-  tracks: TrajectoryTrack[];
-  height?: string;
-}
+interface Props { tracks: TrajectoryTrack[]; height?: string; }
 
-const TRACK_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
-  '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
-];
-
-const DEFAULT_VIEW = { longitude: 121.4737, latitude: 31.2304, height: 5000 };
-
-// ── Component ──────────────────────────────────────────────────────
+const TRACK_COLORS = ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD'];
 
 const CesiumTrajectory: React.FC<Props> = ({ tracks, height = '600px' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<any>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [cesiumAvailable, setCesiumAvailable] = useState(false);
-  const [, setPlaying] = useState(false);
-  const [currentIdx] = useState(0);
+  const viewerRef = useRef<Cesium.Viewer | null>(null);
+  const [ready, setReady] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [, setCurrentIdx] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [showAllTracks, setShowAllTracks] = useState(true);
 
-  // Helper to dynamically import cesium (bypasses Rollup analysis)
-  const loadCesium = (): Promise<any> => {
-    return new Function('return import("cesium")')();
-  };
-
-  // ── Initialize Cesium ─────────────────────────────────────────
-
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
-
-    loadCesium().then((Cesium: any) => {
-      if (!containerRef.current) return;
-
-      try {
-        const viewer = new Cesium.Viewer(containerRef.current, {
-          animation: false,
-          timeline: false,
-          fullscreenButton: false,
-          homeButton: true,
-          sceneModePicker: true,
-          navigationHelpButton: false,
-          geocoder: false,
-          baseLayerPicker: false,
-          imageryProvider: new Cesium.UrlTemplateImageryProvider({
-            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            maximumLevel: 18,
-          }),
-        });
-
-        viewer.scene.globe.enableLighting = true;
-        viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(
-            DEFAULT_VIEW.longitude, DEFAULT_VIEW.latitude, DEFAULT_VIEW.height
-          ),
-          orientation: { heading: 0, pitch: -0.5, roll: 0 },
-          duration: 2,
-        });
-
-        viewerRef.current = viewer;
-        setCesiumAvailable(true);
-        setLoaded(true);
-      } catch (e) {
-        console.warn('Cesium init failed, using fallback', e);
-        setLoaded(true);
-      }
-    }).catch(() => {
-      console.info('Cesium not installed — using 2D fallback');
-      setLoaded(true);
+    const viewer = new Cesium.Viewer(containerRef.current, {
+      animation: false, timeline: false, fullscreenButton: false,
+      homeButton: true, sceneModePicker: true, navigationHelpButton: false,
+      geocoder: false, baseLayerPicker: false,
+      imageryProvider: new Cesium.UrlTemplateImageryProvider({
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', maximumLevel: 18,
+      }),
     });
-
-    return () => {
-      if (viewerRef.current && !viewerRef.current.isDestroyed?.()) {
-        viewerRef.current.destroy?.();
-        viewerRef.current = null;
-      }
-    };
+    viewer.scene.globe.enableLighting = true;
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(121.4737, 31.2304, 5000),
+      orientation: { heading: 0, pitch: -0.5, roll: 0 }, duration: 2,
+    });
+    viewerRef.current = viewer;
+    setReady(true);
+    return () => { if (!viewer.isDestroyed()) viewer.destroy(); };
   }, []);
-
-  // ── Render Tracks ─────────────────────────────────────────────
 
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!viewer || !cesiumAvailable) return;
+    if (!viewer || !ready) return;
+    viewer.entities.removeAll();
 
-    loadCesium().then((Cesium: any) => {
-      if (!viewer || viewer.isDestroyed?.()) return;
-      viewer.entities?.removeAll();
+    const visibleTracks = selectedTrack
+      ? tracks.filter(t => t.targetId === selectedTrack)
+      : showAllTracks ? tracks : [];
 
-      const visibleTracks = selectedTrack
-        ? tracks.filter(t => t.targetId === selectedTrack)
-        : showAllTracks ? tracks : [];
-
-      visibleTracks.forEach((track: TrajectoryTrack, trackIdx: number) => {
-        const color = track.color || TRACK_COLORS[trackIdx % TRACK_COLORS.length];
-
-        if (track.points.length > 1) {
-          viewer.entities?.add({
-            polyline: {
-              positions: Cesium.Cartesian3.fromDegreesArray(
-                track.points.flatMap((p: TrajectoryPoint) => [p.longitude, p.latitude])
-              ),
-              width: 3,
-              material: Cesium.Color.fromCssColorString(color)?.withAlpha(0.7),
-              clampToGround: true,
-            },
-          });
-        }
-
-        track.points.forEach((point: TrajectoryPoint, i: number) => {
-          viewer.entities?.add({
-            position: Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, point.altitude || 0),
-            point: {
-              pixelSize: 6,
-              color: Cesium.Color.fromCssColorString(color),
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 1,
-            },
-            label: {
-              text: point.cameraName || `P${i + 1}`,
-              font: '12px sans-serif',
-              fillColor: Cesium.Color.WHITE,
-              showBackground: true,
-              backgroundColor: Cesium.Color.BLACK?.withAlpha(0.7),
-              verticalOrigin: Cesium.VerticalOrigin?.BOTTOM,
-              pixelOffset: new Cesium.Cartesian2(0, -10),
-            },
-          });
-        });
-      });
-
-      if (visibleTracks.length > 0) {
-        const allPoints = visibleTracks.flatMap((t: TrajectoryTrack) => t.points);
-        viewer.camera?.flyTo({
-          destination: Cesium.Rectangle.fromDegrees(
-            Math.min(...allPoints.map((p: TrajectoryPoint) => p.longitude)) - 0.01,
-            Math.min(...allPoints.map((p: TrajectoryPoint) => p.latitude)) - 0.01,
-            Math.max(...allPoints.map((p: TrajectoryPoint) => p.longitude)) + 0.01,
-            Math.max(...allPoints.map((p: TrajectoryPoint) => p.latitude)) + 0.01,
-          ),
-          duration: 1.5,
+    visibleTracks.forEach((track, i) => {
+      const color = track.color || TRACK_COLORS[i % TRACK_COLORS.length];
+      if (track.points.length > 1) {
+        viewer.entities.add({
+          polyline: {
+            positions: Cesium.Cartesian3.fromDegreesArray(
+              track.points.flatMap(p => [p.longitude, p.latitude])),
+            width: 3, clampToGround: true,
+            material: Cesium.Color.fromCssColorString(color).withAlpha(0.7),
+          },
         });
       }
+      track.points.forEach((point, j) => {
+        viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, point.altitude || 0),
+          point: { pixelSize: 6, color: Cesium.Color.fromCssColorString(color), outlineColor: Cesium.Color.WHITE, outlineWidth: 1 },
+          label: { text: point.cameraName || `P${j+1}`, font: '12px sans-serif', fillColor: Cesium.Color.WHITE,
+            showBackground: true, backgroundColor: Cesium.Color.BLACK.withAlpha(0.7),
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM, pixelOffset: new Cesium.Cartesian2(0, -10) },
+        });
+      });
     });
-  }, [tracks, cesiumAvailable, selectedTrack, showAllTracks, currentIdx]);
+  }, [tracks, ready, selectedTrack, showAllTracks]);
 
-  // ── Render ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!playing) return;
+    const allPoints = tracks.flatMap(t => t.points);
+    if (!allPoints.length) return;
+    const timer = setInterval(() => {
+      setCurrentIdx(prev => {
+        const next = prev + 1;
+        if (next >= allPoints.length) { setPlaying(false); return 0; }
+        const pt = allPoints[next];
+        viewerRef.current?.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(pt.longitude, pt.latitude, 500), duration: 0.5,
+        });
+        return next;
+      });
+    }, 1000 / speed);
+    return () => clearInterval(timer);
+  }, [playing, speed, tracks]);
 
   return (
     <Card
-      title={
-        <Space>
-          <GlobalOutlined />
-          <span>3D 轨迹回放</span>
-          {tracks.length > 0 && <Tag color="blue">{tracks.length} 条轨迹</Tag>}
-          {!cesiumAvailable && loaded && <Tag color="orange">2D 模式</Tag>}
-        </Space>
-      }
-      extra={
-        <Space>
-          <Select
-            size="small" style={{ width: 130 }} placeholder="选择目标" allowClear
-            value={selectedTrack}
-            onChange={(v: any) => { setSelectedTrack(v); setShowAllTracks(!v); }}
-            options={tracks.map(t => ({ label: t.targetId, value: t.targetId }))}
-          />
-          <Button size="small" icon={<SwapOutlined />}
-            onClick={() => setShowAllTracks(!showAllTracks)}>
-            {showAllTracks ? '全部' : '单选'}
-          </Button>
-          <Button size="small" type="primary"
-            icon={false ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-            onClick={() => setPlaying((p: boolean) => !p)}>
-            {false ? '暂停' : '播放'}
-          </Button>
-          <Button size="small" icon={<AimOutlined />}
-            onClick={() => {
-              const v = viewerRef.current;
-              if (v && !v.isDestroyed?.()) {
-                import('cesium').then((C: any) => {
-                  v.camera?.flyTo({
-                    destination: C.Cartesian3.fromDegrees(
-                      DEFAULT_VIEW.longitude, DEFAULT_VIEW.latitude, 10000
-                    ),
-                    duration: 2,
-                  });
-                });
-              }
-            }}>
-            复位
-          </Button>
-          <Slider style={{ width: 100, margin: '0 8px' }}
-            min={0.5} max={5} step={0.5} value={speed}
-            onChange={(v: number) => setSpeed(v)}
-            tooltip={{ formatter: (v?: number) => `${v}x` }}
-          />
-        </Space>
-      }
-      styles={{ body: { padding: 0 } }}
-    >
-      <div ref={containerRef} style={{
-        width: '100%', height, background: '#1a1a2e',
-        borderRadius: '0 0 8px 8px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {!loaded && (
-          <Spin tip="加载 Cesium 3D 引擎..." />
-        )}
-        {loaded && !cesiumAvailable && (
-          <span style={{ color: '#888' }}>
-            3D 地球组件需要安装 cesium 依赖: npm install cesium
-          </span>
-        )}
+      title={<Space><GlobalOutlined /><span>3D 轨迹回放</span>{tracks.length > 0 && <Tag color="blue">{tracks.length} 条轨迹</Tag>}</Space>}
+      extra={<Space>
+        <Select size="small" style={{ width: 130 }} placeholder="选择目标" allowClear value={selectedTrack}
+          onChange={(v: any) => { setSelectedTrack(v); setShowAllTracks(!v); }}
+          options={tracks.map(t => ({ label: t.targetId, value: t.targetId }))} />
+        <Button size="small" icon={<SwapOutlined />} onClick={() => setShowAllTracks(!showAllTracks)}>{showAllTracks ? '全部' : '单选'}</Button>
+        <Button size="small" type="primary" icon={playing ? <PauseCircleOutlined /> : <PlayCircleOutlined />} onClick={() => setPlaying(!playing)}>{playing ? '暂停' : '播放'}</Button>
+        <Button size="small" icon={<AimOutlined />} onClick={() => viewerRef.current?.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(121.4737, 31.2304, 10000), duration: 2 })}>复位</Button>
+        <Slider style={{ width: 100 }} min={0.5} max={5} step={0.5} value={speed} onChange={setSpeed} tooltip={{ formatter: (v?: number) => `${v}x` }} />
+      </Space>}
+      styles={{ body: { padding: 0 } }}>
+      <div ref={containerRef} style={{ width: '100%', height, background: '#1a1a2e', borderRadius: '0 0 8px 8px' }}>
+        {!ready && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#888' }}><Spin tip="加载 3D 引擎..." /></div>}
       </div>
     </Card>
   );

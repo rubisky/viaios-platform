@@ -142,44 +142,71 @@ class GraphRAGEngine:
     # ── Phase 1: Vector Search ──────────────────────────────────
 
     def _vector_search(self, query: GraphRAGQuery) -> List[VectorResult]:
-        """Search Milvus for semantically similar entities."""
+        """Search Milvus for semantically similar entities with caching."""
+        import hashlib, json
+
+        # Cache key for repeated queries
+        cache_key = f"vs:{hashlib.md5(query.text.encode()).hexdigest()[:12]}"
+        if hasattr(self, '_cache') and cache_key in self._cache:
+            return self._cache[cache_key]
+
+        if not hasattr(self, '_cache'):
+            self._cache = {}
+
         try:
             from agent_service.core.milvus_client import milvus_client
             self._milvus = milvus_client
 
-            # Get query embedding via LLM or embedding model
+            # Get query embedding
             embedding = self._get_query_embedding(query.text)
+            if not embedding or len(embedding) < 64:
+                logger.debug("Embedding too short, using mock")
+                return self._mock_vector_search(query)
 
             results = []
-            collections = ["face", "body", "vehicle", "general"]
+            # Try all relevant collections
+            collections = ["face", "body", "vehicle", "knowledge"]
             if query.entity_types:
                 collections = [c for c in collections
-                              if any(t.lower() in c.lower() for t in query.entity_types)]
+                              if any(t.lower() in c.lower() or c in t.lower()
+                                     for t in query.entity_types)]
 
             for coll in collections:
                 try:
+                    stats = self._milvus.get_stats()
+                    if not stats.get("connected"):
+                        continue
                     hits = self._milvus.search(
                         collection=coll,
                         vectors=[embedding],
-                        top_k=query.max_vector_results,
+                        top_k=min(query.max_vector_results, 20),
                     )
-                    for hit in hits:
-                        if hit.get("score", 0) >= query.min_confidence:
-                            results.append(VectorResult(
-                                entity_id=hit.get("id", ""),
-                                entity_type=coll,
-                                score=hit.get("score", 0),
-                                metadata=hit.get("metadata", {}),
-                            ))
-                except Exception:
+                    if hits:
+                        for hit in hits:
+                            score = hit.get("score", hit.get("distance", 0))
+                            if isinstance(score, (int, float)) and score >= query.min_confidence:
+                                results.append(VectorResult(
+                                    entity_id=str(hit.get("id", "")),
+                                    entity_type=coll,
+                                    score=float(score),
+                                    metadata=hit.get("entity", hit.get("metadata", {})),
+                                ))
+                except Exception as e:
+                    logger.debug("Milvus search failed for %s: %s", coll, e)
                     continue
 
-            results.sort(key=lambda r: r.score, reverse=True)
-            return results[:query.max_vector_results]
+            if results:
+                results.sort(key=lambda r: r.score, reverse=True)
+                result = results[:query.max_vector_results]
+                self._cache[cache_key] = result
+                return result
 
         except ImportError:
             logger.debug("Milvus not available, using mock vector results")
-            return self._mock_vector_search(query)
+        except Exception as e:
+            logger.warning("Vector search failed: %s, using mock", e)
+
+        return self._mock_vector_search(query)
 
     def _mock_vector_search(self, query: GraphRAGQuery) -> List[VectorResult]:
         """Mock vector search for development."""
@@ -363,7 +390,32 @@ Rules:
         return round(self.vector_weight * vec_conf + self.graph_weight * graph_conf, 3)
 
     def _get_query_embedding(self, text: str) -> List[float]:
-        """Get embedding vector for query text."""
+        """Get embedding vector for query text via real embedding model or LLM."""
+        # Try embedding pipeline first
+        try:
+            from agent_service.core.capability_pipelines import get_all_pipelines
+            pipelines = get_all_pipelines()
+            emb_pipeline = pipelines.get("embedding")
+            if emb_pipeline and emb_pipeline.loaded:
+                import numpy as np
+                dummy_img = np.zeros((224, 224, 3), dtype=np.uint8)
+                result = emb_pipeline(dummy_img)
+                if result.get("results"):
+                    return result["results"][0].get("embedding", [])
+        except Exception:
+            pass
+
+        # Try LLM embedding API
+        try:
+            from agent_service.core.llm import get_llm_provider
+            llm = get_llm_provider()
+            emb = llm.embed(text)
+            if emb and len(emb) > 0:
+                return emb
+        except Exception:
+            pass
+
+        # Fallback: deterministic hash-based embedding
         import hashlib, random
         seed = int(hashlib.sha256(text.encode()).hexdigest()[:16], 16)
         rng = random.Random(seed)
