@@ -1,6 +1,6 @@
 /** Document Center — Evidence documents & reports management */
-import React, { useState } from 'react';
-import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Upload, message } from 'antd';
+import React from 'react';
+import { Card, Table, Tag, Button, Space, Row, Col, Statistic } from 'antd';
 import { FileTextOutlined, UploadOutlined, DownloadOutlined, EyeOutlined } from '@ant-design/icons';
 
 const mockDocs = [
@@ -10,7 +10,6 @@ const mockDocs = [
 ];
 
 const DocumentCenter: React.FC = () => {
-  const [docs] = useState(mockDocs);
   return (
     <div>
       <Space style={{ marginBottom: 16, justifyContent: 'space-between', width: '100%' }}>
@@ -20,8 +19,8 @@ const DocumentCenter: React.FC = () => {
         </Space>
       </Space>
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        {[{ title: 'Documents', value: docs.length, color: '#1677ff' },
-          { title: 'Verified', value: docs.filter(d => d.status === 'verified').length, color: '#52c41a' },
+        {[{ title: 'Documents', value: mockDocs.length, color: '#1677ff' },
+          { title: 'Verified', value: mockDocs.filter((d: any) => d.status === 'verified').length, color: '#52c41a' },
           { title: 'Total Size', value: '4.0MB', color: '#722ed1' },
         ].map(s => (
           <Col xs={12} sm={8} key={s.title}><Card size="small" style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
@@ -30,7 +29,7 @@ const DocumentCenter: React.FC = () => {
         ))}
       </Row>
       <Card style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
-        <Table dataSource={docs} rowKey="id" size="small" pagination={false}
+        <Table dataSource={mockDocs} rowKey="id" size="small" pagination={false}
           columns={[
             { title: 'Name', dataIndex: 'name', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
             { title: 'Type', dataIndex: 'type', width: 80, render: (v: string) => <Tag>{v}</Tag> },

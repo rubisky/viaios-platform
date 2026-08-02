@@ -1,6 +1,6 @@
 /** Prompt OS Management — template browser + AB test dashboard */
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Modal, Descriptions, message, Tabs, Progress } from 'antd';
+import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Descriptions, Tabs, Progress } from 'antd';
 import { ExperimentOutlined } from '@ant-design/icons';
 import { apiGet } from '../../api/client';
 
