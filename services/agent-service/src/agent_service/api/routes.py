@@ -1691,6 +1691,30 @@ async def acknowledge_alarm(alarm_id: str):
     a = get_surveillance().acknowledge(alarm_id)
     return {"status": a.status.value}
 
+# ═══════════════════════════════════════════════════════════════════
+# Memory Manager API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.post("/memory/working", tags=["Memory"])
+async def memory_add(content: str = "", role: str = "user", importance: float = 0.5):
+    """Add to working memory."""
+    from agent_service.core.memory_enhanced import get_memory
+    entry = get_memory().add_working(content, role, importance)
+    return {"id": entry.id, "status": "added"}
+
+@router.get("/memory/recall", tags=["Memory"])
+async def memory_recall(query: str = "", limit: int = 10):
+    """Recall from all three memory tiers."""
+    from agent_service.core.memory_enhanced import get_memory
+    return get_memory().recall(query, limit)
+
+@router.get("/memory/stats", tags=["Memory"])
+async def memory_stats():
+    """Get memory manager statistics."""
+    from agent_service.core.memory_enhanced import get_memory
+    return get_memory().stats()
+
+
 @router.post("/surveillance/alarms/{alarm_id}/resolve", tags=["Surveillance"])
 async def resolve_alarm(alarm_id: str, note: str = ""):
     """Resolve an alarm."""
