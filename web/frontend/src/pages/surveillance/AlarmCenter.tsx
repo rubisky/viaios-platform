@@ -57,7 +57,7 @@ const AlarmCenter: React.FC = () => {
 
       <Card title={<span style={{ color: '#e0e0e0' }}>Active Alarms</span>} style={{ background: '#16213e', borderColor: '#2a2a4a', marginBottom: 16 }}>
         <Table dataSource={alarms} loading={loading} rowKey="id" size="small"
-          onRow={r => ({ style: { cursor: 'pointer' } })}
+          onRow={() => ({ style: { cursor: 'pointer' } })}
           columns={[
             { title: 'Time', dataIndex: 'triggered_at', width: 80, render: (v: string) => v?.slice(11,19) },
             { title: 'Rule', dataIndex: 'rule', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },

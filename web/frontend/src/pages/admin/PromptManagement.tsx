@@ -1,7 +1,7 @@
 /** Prompt OS Management — template browser + AB test dashboard */
 import React, { useEffect, useState } from 'react';
 import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Modal, Descriptions, message, Tabs, Progress } from 'antd';
-import { ExperimentOutlined, ThunderboltOutlined, StarOutlined } from '@ant-design/icons';
+import { ExperimentOutlined } from '@ant-design/icons';
 import { apiGet } from '../../api/client';
 
 const PromptManagement: React.FC = () => {
