@@ -49,7 +49,7 @@ const ModelViewer3D: React.FC<Props> = ({ detections = [], keypoints = [], width
     });
 
     // Render keypoints as spheres
-    keypoints.forEach((kps, i) => {
+    keypoints.forEach(kps => {
       kps.forEach(kp => {
         const geo = new THREE.SphereGeometry(0.03, 8, 8);
         const mat = new THREE.MeshPhongMaterial({ color: 0x00ff88 });
