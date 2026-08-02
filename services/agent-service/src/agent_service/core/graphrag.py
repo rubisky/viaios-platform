@@ -294,6 +294,12 @@ Rules:
             ]
 
             response = self._llm.chat(messages, temperature=0.3, max_tokens=500)
+            # Handle async LLM responses
+            if hasattr(response, '__await__'):
+                import asyncio
+                response = asyncio.run(response) if hasattr(asyncio, 'run') else str(response)
+            if not isinstance(response, str):
+                response = str(response)
             parsed = self._parse_reasoning_response(response)
 
             # Collect sources
