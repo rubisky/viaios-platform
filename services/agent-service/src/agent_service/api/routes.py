@@ -1524,3 +1524,66 @@ async def gb_stats():
     """P2-2: Get GB28181 server statistics."""
     from agent_service.core.gb28181 import get_gb28181_server
     return get_gb28181_server().get_stats()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Telemetry Engine API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/telemetry/report", tags=["Telemetry"])
+async def telemetry_report():
+    """Get comprehensive telemetry report across all services."""
+    from agent_service.core.telemetry import get_telemetry
+    report = get_telemetry().generate_report()
+    return {
+        "timestamp": report.timestamp.isoformat(),
+        "services": report.total_services,
+        "healthy": report.healthy_services,
+        "total_requests": report.total_requests,
+        "error_rate": report.total_errors,
+        "avg_gpu_util": report.avg_gpu_util,
+        "avg_cpu": report.avg_cpu_percent,
+        "alerts": report.alerts,
+    }
+
+@router.get("/telemetry/metrics", tags=["Telemetry"])
+async def telemetry_metrics():
+    """Export Prometheus-format metrics."""
+    from agent_service.core.telemetry import get_telemetry
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(get_telemetry().get_prometheus_metrics())
+
+@router.get("/telemetry/stats", tags=["Telemetry"])
+async def telemetry_stats():
+    """Get telemetry engine statistics."""
+    from agent_service.core.telemetry import get_telemetry
+    return get_telemetry().stats()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Tool Manager API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/tools", tags=["Tool Manager"])
+async def list_tools():
+    """List all registered tools with usage statistics."""
+    from agent_service.core.tool_manager import get_tool_manager
+    return {"tools": get_tool_manager().list_tools()}
+
+@router.get("/tools/discover", tags=["Tool Manager"])
+async def discover_tools(category: Optional[str] = None):
+    """Discover tools by category (search/analysis/video/report/system)."""
+    from agent_service.core.tool_manager import get_tool_manager
+    return {"tools": get_tool_manager().discover(category=category)}
+
+@router.get("/tools/calls", tags=["Tool Manager"])
+async def tool_calls(limit: int = 50):
+    """Get recent tool call history."""
+    from agent_service.core.tool_manager import get_tool_manager
+    return {"calls": get_tool_manager().get_calls(limit)}
+
+@router.get("/tools/stats", tags=["Tool Manager"])
+async def tool_stats():
+    """Get tool manager statistics."""
+    from agent_service.core.tool_manager import get_tool_manager
+    return get_tool_manager().stats()
