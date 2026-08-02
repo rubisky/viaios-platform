@@ -24,6 +24,7 @@ const ModelManagement = lazy(() => import('@/pages/admin/ModelManagement'));
 const AuditLog = lazy(() => import('@/pages/admin/AuditLog'));
 const SystemDiagnostics = lazy(() => import('@/pages/admin/SystemDiagnostics'));
 const SettingsWizard = lazy(() => import('@/pages/admin/SettingsWizard'));
+const AlarmCenter = lazy(() => import('@/pages/surveillance/AlarmCenter'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 import AuthGuard from '@/components/AuthGuard';
 import NotificationBell from '@/components/NotificationBell';
@@ -179,6 +180,7 @@ const MainLayout: React.FC = () => {
             <Route path="/cameras/:id" element={<CameraDetail />} />
             <Route path="/cases/:id" element={<CaseDetail />} />
             <Route path="/surveillance" element={<AlarmPage />} />
+            <Route path="/alarms" element={<AlarmCenter />} />
             <Route path="/trajectory" element={<TrajectoryViewer />} />
             <Route path="/workflow" element={<WorkflowEditor />} />
             <Route path="/reports" element={<ReportPage />} />
