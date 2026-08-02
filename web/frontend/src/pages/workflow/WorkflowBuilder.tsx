@@ -1,6 +1,6 @@
 /** Workflow Builder — Visual DAG editor using ReactFlow (P4-2) */
-import React, { useState, useCallback, useMemo } from 'react';
-import { Card, Button, Space, Tag, message, Drawer, Form, Input, Select, InputNumber } from 'antd';
+import React, { useState, useCallback } from 'react';
+import { Card, Button, Space, Tag, message, Drawer } from 'antd';
 import { PlusOutlined, SaveOutlined, PlayCircleOutlined, NodeIndexOutlined } from '@ant-design/icons';
 import ReactFlow, {
   Background, Controls, MiniMap, addEdge, useNodesState, useEdgesState,
@@ -42,7 +42,7 @@ const WorkflowBuilder: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [yaml, setYaml] = useState('');
 
-  const onConnect = useCallback((params: any) => setEdges(eds => addEdge({ ...params, animated: true, style: { stroke: '#4ecdc4' }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4ecdc4' } }), eds), [setEdges]);
+  const onConnect = useCallback((params: any) => setEdges((eds: any) => addEdge({ ...params, animated: true, style: { stroke: '#4ecdc4' }, markerEnd: { type: MarkerType.ArrowClosed, color: '#4ecdc4' } }, eds)), [setEdges]);
 
   const addNode = (type: string) => {
     const nt = nodeTypes[type as keyof typeof nodeTypes] || { label: type, color: '#666', icon: '⬜' };
