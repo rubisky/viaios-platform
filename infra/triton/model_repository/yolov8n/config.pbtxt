@@ -1,0 +1,46 @@
+# Triton Inference Server Model Configuration
+# Model: YOLOv8n — Object Detection
+# Path: /opt/viaios/models/triton/yolov8n/
+
+name: "yolov8n"
+platform: "onnxruntime_onnx"
+max_batch_size: 8
+
+input [
+  {
+    name: "images"
+    data_type: TYPE_FP32
+    dims: [ 3, 640, 640 ]
+  }
+]
+
+output [
+  {
+    name: "output0"
+    data_type: TYPE_FP32
+    dims: [ 84, 8400 ]
+  }
+]
+
+instance_group [
+  {
+    count: 2
+    kind: KIND_GPU
+    gpus: [ 0, 1 ]
+  }
+]
+
+dynamic_batching {
+  max_queue_delay_microseconds: 100
+}
+
+optimization {
+  execution_accelerators {
+    gpu_execution_accelerator [
+      {
+        name: "tensorrt"
+        parameters { key: "precision_mode" value: "FP16" }
+      }
+    ]
+  }
+}

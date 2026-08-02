@@ -1,0 +1,45 @@
+# Triton Ensemble: VIAIOS Video Structuring Pipeline
+# Chains: yolov8n (detect) → resnet50 (embed) → arcface (face)
+# Usage: POST /v2/models/viaios_ensemble/infer
+
+name: "viaios_ensemble"
+platform: "ensemble"
+max_batch_size: 4
+
+input [
+  {
+    name: "input_image"
+    data_type: TYPE_FP32
+    dims: [ 3, 640, 640 ]
+  }
+]
+
+output [
+  {
+    name: "detections"
+    data_type: TYPE_FP32
+    dims: [ 100, 6 ]
+  },
+  {
+    name: "embeddings"
+    data_type: TYPE_FP32
+    dims: [ 512 ]
+  }
+]
+
+ensemble_scheduling {
+  step [
+    {
+      model_name: "yolov8n"
+      model_version: 1
+      input_map { key: "images" value: "input_image" }
+      output_map { key: "output0" value: "detections_raw" }
+    },
+    {
+      model_name: "resnet50"
+      model_version: 1
+      input_map { key: "input" value: "input_image" }
+      output_map { key: "output" value: "embeddings" }
+    }
+  ]
+}

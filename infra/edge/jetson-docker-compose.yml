@@ -1,0 +1,56 @@
+# VIAIOS Edge — NVIDIA Jetson Orin/AGX Deployment
+# Usage: docker compose -f jetson-docker-compose.yml up -d
+
+version: "3.9"
+services:
+  viaios-edge-agent:
+    image: viaios/edge-agent:jetson-r36.3
+    container_name: viaios-edge-agent
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - EDGE_DEVICE_ID=${JETSON_ID:-jetson-001}
+      - MQTT_BROKER=${MQTT_BROKER:-cloud-mqtt:1883}
+      - CAMERA_STREAMS=rtsp://camera1,rtsp://camera2
+      - ONNX_PROVIDERS=CUDAExecutionProvider,TensorrtExecutionProvider
+      - MAX_STREAMS=8
+      - VIDEO_PORT=8093
+    volumes:
+      - /opt/viaios/edge/models:/opt/viaios/models:ro
+      - /opt/viaios/edge/data:/opt/viaios/data
+      - /tmp/argus_socket:/tmp/argus_socket
+    ports:
+      - "8093:8093"
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  viaios-edge-rtsp:
+    image: viaios/edge-rtsp:jetson
+    container_name: viaios-edge-rtsp
+    runtime: nvidia
+    environment:
+      - RTSP_SOURCES=4
+      - HARDWARE_DECODE=1
+      - OUTPUT_DIR=/opt/viaios/data/streams
+    volumes:
+      - /opt/viaios/edge/data:/opt/viaios/data
+    restart: unless-stopped
+
+  viaios-edge-monitor:
+    image: viaios/edge-monitor:jetson
+    container_name: viaios-edge-monitor
+    environment:
+      - JETSON_CLOCKS=1
+      - MAX_POWER=1
+      - FAN_SPEED=255
+    volumes:
+      - /sys/devices:/sys/devices:ro
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
