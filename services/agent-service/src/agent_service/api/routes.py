@@ -1407,3 +1407,120 @@ async def governance_check(request: GovernanceCheckRequest):
         "triggered_rules": decision.triggered_rules,
         "reasons": decision.reasons,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P2-1: Triton Inference Server API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/triton/health", tags=["Triton"])
+async def triton_health():
+    """Check Triton Inference Server health."""
+    from agent_service.core.triton_client import get_triton_client
+    client = get_triton_client()
+    return {"ready": client.is_ready(), "live": client.is_live()}
+
+@router.get("/triton/models", tags=["Triton"])
+async def triton_list_models():
+    """List all models in Triton Inference Server."""
+    from agent_service.core.triton_client import get_triton_client
+    client = get_triton_client()
+    models = client.list_models()
+    return {
+        "total": len(models),
+        "models": [
+            {"name": m.name, "version": m.version, "status": m.status,
+             "platform": m.platform, "max_batch": m.max_batch_size}
+            for m in models
+        ],
+    }
+
+@router.get("/triton/metrics", tags=["Triton"])
+async def triton_metrics():
+    """Get Triton server performance metrics."""
+    from agent_service.core.triton_client import get_triton_client
+    metrics = get_triton_client().get_metrics()
+    return {
+        "ready": metrics.server_ready, "live": metrics.server_live,
+        "model_count": metrics.model_count,
+        "inference_count": metrics.inference_count,
+        "avg_latency_ms": metrics.avg_latency_ms,
+        "gpu_utilization": metrics.gpu_utilization,
+    }
+
+@router.post("/triton/load/{model_name}", tags=["Triton"])
+async def triton_load_model(model_name: str):
+    """Request Triton to load a model."""
+    from agent_service.core.triton_client import get_triton_client
+    get_triton_client().load_model(model_name)
+    return {"status": "loading", "model": model_name}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P2-2: GB28181 Camera Integration API
+# ═══════════════════════════════════════════════════════════════════
+
+class GBDeviceRegister(BaseModel):
+    device_id: str = Field(..., min_length=20, max_length=20)
+    name: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    ip_address: str = ""
+    port: int = 5060
+    channels: int = Field(default=1, ge=1, le=64)
+    ptz_supported: bool = False
+
+@router.get("/cameras/gb28181/devices", tags=["GB28181"])
+async def gb_list_devices(status: Optional[str] = None):
+    """P2-2: List all GB28181 registered camera devices."""
+    from agent_service.core.gb28181 import get_gb28181_server
+    devices = get_gb28181_server().list_devices(status)
+    return {
+        "total": len(devices),
+        "devices": [
+            {"device_id": d.device_id, "name": d.name, "status": d.status,
+             "ip": d.ip_address, "channels": d.channels, "ptz": d.ptz_supported}
+            for d in devices
+        ],
+    }
+
+@router.post("/cameras/gb28181/register", tags=["GB28181"])
+async def gb_register_device(req: GBDeviceRegister):
+    """P2-2: Register a GB28181 camera device."""
+    from agent_service.core.gb28181 import GBDevice, get_gb28181_server, GB28181Server
+    if not GB28181Server.validate_device_id(req.device_id):
+        raise HTTPException(400, "Invalid GB28181 device ID (must be 20 digits)")
+    device = GBDevice(
+        device_id=req.device_id, name=req.name,
+        manufacturer=req.manufacturer, model=req.model,
+        ip_address=req.ip_address, port=req.port,
+        channels=req.channels, ptz_supported=req.ptz_supported,
+    )
+    get_gb28181_server().register_device(device)
+    return {"status": "registered", "device_id": req.device_id}
+
+@router.post("/cameras/gb28181/{device_id}/preview", tags=["GB28181"])
+async def gb_start_preview(device_id: str, channel: str = "1"):
+    """P2-2: Start GB28181 live preview stream."""
+    from agent_service.core.gb28181 import get_gb28181_server
+    stream = get_gb28181_server().start_live_preview(device_id, channel)
+    if not stream:
+        raise HTTPException(404, "Device not found or no ports available")
+    return {"stream_id": stream.stream_id, "rtp_port": stream.rtp_port,
+            "codec": stream.codec, "resolution": stream.resolution}
+
+@router.post("/cameras/gb28181/{device_id}/ptz", tags=["GB28181"])
+async def gb_ptz_control(device_id: str, command: str = "STOP",
+                         speed: int = 50, preset: int = 0):
+    """P2-2: Control PTZ for a GB28181 camera."""
+    from agent_service.core.gb28181 import get_gb28181_server
+    result = get_gb28181_server().ptz_control(device_id, command, speed, preset)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+@router.get("/cameras/gb28181/stats", tags=["GB28181"])
+async def gb_stats():
+    """P2-2: Get GB28181 server statistics."""
+    from agent_service.core.gb28181 import get_gb28181_server
+    return get_gb28181_server().get_stats()
