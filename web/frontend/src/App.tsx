@@ -19,6 +19,7 @@ const CaseDetail = lazy(() => import('@/pages/cases/CaseDetail'));
 const ReportPage = lazy(() => import('@/pages/reports/ReportPage'));
 const TrajectoryViewer = lazy(() => import('@/pages/trajectory/TrajectoryViewer'));
 const WorkflowEditor = lazy(() => import('@/pages/workflow/WorkflowEditor'));
+const WorkflowBuilder = lazy(() => import('@/pages/workflow/WorkflowBuilder'));
 const KnowledgeGraph = lazy(() => import('@/pages/knowledge/KnowledgeGraph'));
 const ModelManagement = lazy(() => import('@/pages/admin/ModelManagement'));
 const AuditLog = lazy(() => import('@/pages/admin/AuditLog'));
@@ -185,6 +186,7 @@ const MainLayout: React.FC = () => {
             <Route path="/alarms" element={<AlarmCenter />} />
             <Route path="/trajectory" element={<TrajectoryViewer />} />
             <Route path="/workflow" element={<WorkflowEditor />} />
+            <Route path="/workflow/builder" element={<WorkflowBuilder />} />
             <Route path="/reports" element={<ReportPage />} />
             <Route path="/knowledge" element={<KnowledgeGraph />} />
             <Route path="/settings" element={<AdminPage />} />
