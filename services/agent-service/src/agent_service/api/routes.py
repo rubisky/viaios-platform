@@ -1709,6 +1709,34 @@ async def memory_recall(query: str = "", limit: int = 10):
     return get_memory().recall(query, limit)
 
 # ═══════════════════════════════════════════════════════════════════
+# Security Engine API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/security/stats", tags=["Security"])
+async def security_stats():
+    """Get security engine statistics."""
+    from agent_service.core.security_standalone import get_security_engine
+    return get_security_engine().stats()
+
+class AuthCheckRequest(BaseModel):
+    token: str = ""
+    action: str = "read"
+    resource: str = "cameras"
+
+@router.post("/security/check", tags=["Security"])
+async def security_check(req: AuthCheckRequest):
+    """Validate token and check permission."""
+    from agent_service.core.security_standalone import get_security_engine
+    eng = get_security_engine()
+    ctx = eng.authenticate(req.token)
+    if not ctx:
+        return {"authenticated": False, "reason": "Invalid token"}
+    decision = eng.authorize(ctx, req.action, req.resource)
+    return {"authenticated": True, "allowed": decision.allowed,
+            "role": ctx.role, "reason": decision.reason}
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Prompt OS API
 # ═══════════════════════════════════════════════════════════════════
 
