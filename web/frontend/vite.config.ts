@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+// @ts-ignore
 import cesium from 'vite-plugin-cesium';
 
 export default defineConfig({
@@ -32,7 +33,6 @@ export default defineConfig({
           'vendor-leaflet': ['leaflet', 'react-leaflet'],
           'vendor-flow': ['reactflow'],
           'vendor-hls': ['hls.js'],
-          'vendor-cesium': ['cesium'],
         },
       },
     },

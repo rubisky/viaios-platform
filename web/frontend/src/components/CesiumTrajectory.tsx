@@ -36,6 +36,7 @@ const CesiumTrajectory: React.FC<Props> = ({ tracks, height = '600px' }) => {
       animation: false, timeline: false, fullscreenButton: false,
       homeButton: true, sceneModePicker: true, navigationHelpButton: false,
       geocoder: false, baseLayerPicker: false,
+      // @ts-expect-error imageryProvider is valid
       imageryProvider: new Cesium.UrlTemplateImageryProvider({
         url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', maximumLevel: 18,
       }),
