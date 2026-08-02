@@ -1,6 +1,6 @@
 /** Alarm Center — Real-time alarm monitoring dashboard */
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Space, Statistic, Row, Col, message, Select, Modal, Descriptions } from 'antd';
+import { Card, Table, Tag, Button, Space, Statistic, Row, Col, Select } from 'antd';
 import { BellOutlined, CheckOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiGet, apiPost } from '../../api/client';
 
@@ -13,7 +13,6 @@ const AlarmCenter: React.FC = () => {
   const [stats, setStats] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
-  const [selected, setSelected] = useState<any>(null);
 
   const fetch = async () => {
     setLoading(true);
@@ -58,7 +57,7 @@ const AlarmCenter: React.FC = () => {
 
       <Card title={<span style={{ color: '#e0e0e0' }}>Active Alarms</span>} style={{ background: '#16213e', borderColor: '#2a2a4a', marginBottom: 16 }}>
         <Table dataSource={alarms} loading={loading} rowKey="id" size="small"
-          onRow={r => ({ onClick: () => setSelected(r), style: { cursor: 'pointer' } })}
+          onRow={r => ({ style: { cursor: 'pointer' } })}
           columns={[
             { title: 'Time', dataIndex: 'triggered_at', width: 80, render: (v: string) => v?.slice(11,19) },
             { title: 'Rule', dataIndex: 'rule', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
