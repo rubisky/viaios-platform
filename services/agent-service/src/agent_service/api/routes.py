@@ -1796,6 +1796,29 @@ async def prompt_stats():
     return prompt_engine.get_stats()
 
 
+# ═══════════════════════════════════════════════════════════════════
+# Search Ranker API (Phase 2)
+# ═══════════════════════════════════════════════════════════════════
+
+class SearchRankRequest(BaseModel):
+    hits: List[Dict[str, Any]] = Field(default_factory=list)
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+
+@router.post("/search/rank", tags=["Search"])
+async def search_rank(req: SearchRankRequest):
+    """Rank search results with multi-factor scoring."""
+    from agent_service.core.search_ranker import get_search_ranker
+    ranked = get_search_ranker().rank(req.hits, attributes=req.attributes or None)
+    return {
+        "total": len(ranked),
+        "results": [
+            {"id": h.id, "entity_type": h.entity_type, "score": h.score,
+             "rank": h.rank, "camera": h.camera_id}
+            for h in ranked
+        ],
+    }
+
+
 @router.get("/memory/stats", tags=["Memory"])
 async def memory_stats():
     """Get memory manager statistics."""
