@@ -1927,6 +1927,158 @@ async def trajectory_search(req: TrajectorySearchRequest):
 # Search Quality API (Phase 4)
 # ═══════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════
+# Target Library API — 抓拍库/离线上传库/重点人员库/历史解析库
+# ═══════════════════════════════════════════════════════════════════
+
+class IngestRequest(BaseModel):
+    image_data: str = Field(..., description="Base64 image or URL")
+    library: str = "snapshot"
+    target_type: str = ""
+    camera_id: str = ""
+    camera_name: str = ""
+    name: str = ""
+    tags: List[str] = Field(default_factory=list)
+
+class BatchIngestRequest(BaseModel):
+    images: List[Dict[str, Any]] = Field(default_factory=list)
+    library: str = "upload"
+
+class Search1VNRequest(BaseModel):
+    image_data: str = Field(...)
+    library: str = ""
+    top_k: int = Field(default=20, ge=1, le=100)
+    min_score: float = Field(default=0.5, ge=0.0, le=1.0)
+
+class SearchMVNRequest(BaseModel):
+    query_images: List[Dict[str, Any]] = Field(default_factory=list)
+    library: str = ""
+    top_k: int = Field(default=10, ge=1, le=50)
+
+class VerifyRequest(BaseModel):
+    image_a: str = Field(...)
+    image_b: str = Field(...)
+
+# ── Ingest ─────────────────────────────────────────────────────
+
+@router.post("/library/ingest", tags=["Target Library"])
+async def library_ingest(req: IngestRequest):
+    """Ingest a target into the library (snapshot/upload/watchlist/history)."""
+    from agent_service.core.target_library import get_target_library, LibraryType, TargetType
+    lib = get_target_library()
+    lt = LibraryType(req.library) if req.library else LibraryType.SNAPSHOT
+    tt = TargetType(req.target_type) if req.target_type else None
+    target = lib.ingest(req.image_data, library=lt, target_type=tt,
+                        camera_id=req.camera_id, camera_name=req.camera_name,
+                        name=req.name, tags=req.tags)
+    return {"id": target.id, "name": target.name, "library": target.library.value,
+            "type": target.target_type.value, "camera_id": target.camera_id}
+
+@router.post("/library/ingest/batch", tags=["Target Library"])
+async def library_ingest_batch(req: BatchIngestRequest):
+    """Batch ingest multiple images."""
+    from agent_service.core.target_library import get_target_library, LibraryType
+    lib = get_target_library()
+    lt = LibraryType(req.library) if req.library else LibraryType.UPLOAD
+    results = lib.ingest_batch(req.images, library=lt)
+    return {"total": len(results), "ids": [r.id for r in results]}
+
+# ── Search ─────────────────────────────────────────────────────
+
+@router.post("/library/search/1vn", tags=["Target Library"])
+async def library_search_1vn(req: Search1VNRequest):
+    """1:N search — one image against entire library."""
+    from agent_service.core.target_library import get_target_library, LibraryType
+    lib = get_target_library()
+    lt = LibraryType(req.library) if req.library else None
+    results = lib.search_1vn(req.image_data, library=lt,
+                             top_k=req.top_k, min_score=req.min_score)
+    return {
+        "total": len(results),
+        "results": [
+            {"target_id": r.target.id, "name": r.target.name,
+             "score": r.score, "rank": r.rank,
+             "library": r.target.library.value,
+             "type": r.target.target_type.value,
+             "camera": r.target.camera_id,
+             "attributes": r.target.attributes}
+            for r in results
+        ],
+    }
+
+@router.post("/library/search/mvn", tags=["Target Library"])
+async def library_search_mvn(req: SearchMVNRequest):
+    """M:N search — multiple images against library."""
+    from agent_service.core.target_library import get_target_library, LibraryType
+    lib = get_target_library()
+    lt = LibraryType(req.library) if req.library else None
+    results = lib.search_mvn(req.query_images, library=lt, top_k=req.top_k)
+    return {
+        "total": len(results),
+        "queries": [
+            {"query_id": r.query_id, "matches": len(r.matches),
+             "top_score": r.matches[0].score if r.matches else 0}
+            for r in results
+        ],
+    }
+
+@router.post("/library/verify", tags=["Target Library"])
+async def library_verify(req: VerifyRequest):
+    """1:1 verification — same person? Returns similarity score."""
+    from agent_service.core.target_library import get_target_library
+    result = get_target_library().verify_1v1(req.image_a, req.image_b)
+    return result
+
+# ── Query ──────────────────────────────────────────────────────
+
+@router.get("/library/targets", tags=["Target Library"])
+async def library_list(library: str = "", type: str = "",
+                       camera_id: str = "", limit: int = 100, offset: int = 0):
+    """List all targets with optional filters."""
+    from agent_service.core.target_library import get_target_library, LibraryType, TargetType
+    lib = get_target_library()
+    lt = LibraryType(library) if library else None
+    tt = TargetType(type) if type else None
+    targets = lib.list_targets(lt, tt, camera_id, limit, offset)
+    return {
+        "total": len(targets),
+        "results": [
+            {"id": t.id, "name": t.name, "library": t.library.value,
+             "type": t.target_type.value, "camera_id": t.camera_id,
+             "timestamp": t.timestamp.isoformat(), "attributes": t.attributes}
+            for t in targets
+        ],
+    }
+
+@router.get("/library/stats", tags=["Target Library"])
+async def library_stats():
+    """Get target library statistics."""
+    from agent_service.core.target_library import get_target_library
+    stats = get_target_library().get_stats()
+    return {
+        "total_targets": stats.total_targets,
+        "by_type": stats.by_type,
+        "by_library": stats.by_library,
+        "by_camera": stats.by_camera,
+        "last_ingest": stats.last_ingest,
+        "storage_mb": stats.storage_size_mb,
+    }
+
+@router.delete("/library/targets/{target_id}", tags=["Target Library"])
+async def library_delete(target_id: str):
+    """Delete a target from the library."""
+    from agent_service.core.target_library import get_target_library
+    ok = get_target_library().delete_target(target_id)
+    return {"deleted": ok}
+
+@router.post("/library/seed", tags=["Target Library"])
+async def library_seed(count: int = 50):
+    """Seed demo data for testing."""
+    from agent_service.core.target_library import get_target_library
+    get_target_library().seed_demo_data(count)
+    return {"status": "seeded", "count": count}
+
+
 @router.get("/search/quality/metrics", tags=["Search"])
 async def search_quality_metrics():
     """Get search quality metrics (P@K, recall, mAP, MRR)."""
