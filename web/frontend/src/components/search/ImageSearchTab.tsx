@@ -26,7 +26,7 @@ const ImageSearchTab: React.FC = () => {
     setFeatures([]); setSelected([]); setResults([]);
     setDetecting(true);
     try {
-      const f = file.originFileObj as Blob;
+      const f = file as unknown as Blob;
       const base64 = await new Promise<string>((res, rej) => {
         const r = new FileReader(); r.onload = () => res((r.result as string).split(',')[1]); r.onerror = rej;
         r.readAsDataURL(f);
