@@ -53,7 +53,7 @@ const menuItems: MenuItem[] = [
   { key: '/audit', icon: <SettingOutlined />, label: '审计日志' },
   { key: '/diagnostics', icon: <SettingOutlined />, label: '系统诊断' },
   { key: '/wizard', icon: <SettingOutlined />, label: '设置向导' },
-  { key: '/prompts', icon: <SettingOutlined />, label: 'Prompt OS' },
+  { key: '/prompts', icon: <SettingOutlined />, label: '提示词管理' },
   { key: '/documents', icon: <SettingOutlined />, label: '文档中心' },
 ];
 
