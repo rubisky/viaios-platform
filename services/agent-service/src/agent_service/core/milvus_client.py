@@ -52,65 +52,31 @@ class MilvusClient:
 
     def _init_client(self):
         if not MILVUS_ENABLED:
-            logger.info("Milvus disabled (MILVUS_ENABLED=false) — using TF-IDF fallback")
+            logger.info("Milvus disabled (MILVUS_ENABLED=false)")
             return
         try:
-            from pymilvus import connections, Collection, utility
-            connections.connect(host=MILVUS_HOST, port=MILVUS_PORT)
-            self._milvus = {"connections": connections, "Collection": Collection, "utility": utility}
+            from agent_service.core.milvus_client_local import LocalVectorStore
+            import os
+            db_path = os.getenv("MILVUS_DB_PATH", "/opt/viaios/data/vectors")
+            self._store = LocalVectorStore(db_path)
             self._connected = True
-            logger.info("Milvus connected to %s:%s", MILVUS_HOST, MILVUS_PORT)
+            logger.info("LocalVectorStore ready: %d collections", len(self._store.collections))
             health_monitor.record("milvus_connected", 1)
         except ImportError:
-            logger.warning("pymilvus not installed — using TF-IDF fallback")
+            logger.warning("LocalVectorStore not available — using TF-IDF fallback")
         except Exception as e:
-            logger.warning("Milvus connection failed: %s — using TF-IDF fallback", e)
+            logger.warning("Vector store init failed: %s — using fallback", e)
 
     def create_collections(self) -> Dict[str, bool]:
         """Create all 4 collections if they don't exist."""
-        if not self._connected:
-            return {name: False for name in COLLECTIONS}
-
         results = {}
-        Collection = self._milvus["Collection"]
-        utility = self._milvus["utility"]
-
         for name, config in COLLECTIONS.items():
             try:
-                if utility.has_collection(name):
-                    self._collections[name] = Collection(name)
-                    results[name] = True
-                    continue
-
-                from pymilvus import CollectionSchema, FieldSchema, DataType
-
-                fields = [
-                    FieldSchema(name="id", dtype=DataType.VARCHAR, max_length=64, is_primary=True),
-                    FieldSchema(name="tenant_id", dtype=DataType.VARCHAR, max_length=36),
-                    FieldSchema(name="entity_id", dtype=DataType.VARCHAR, max_length=128),
-                    FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=config["dim"]),
-                    FieldSchema(name="metadata", dtype=DataType.JSON),
-                    FieldSchema(name="created_at", dtype=DataType.INT64),
-                ]
-                schema = CollectionSchema(fields, description=f"VIAIOS {name}")
-                col = Collection(name, schema)
-
-                # Create index
-                index_params = {
-                    "metric_type": config["metric"],
-                    "index_type": config["index"],
-                    "params": {k: v for k, v in config.items() if k in ("nlist", "M", "efConstruction")},
-                }
-                col.create_index("embedding", index_params)
-                col.load()
-                self._collections[name] = col
+                if self._connected and hasattr(self, '_store'):
+                    self._store.create_collection(name, config["dim"])
                 results[name] = True
-                logger.info("Milvus collection created: %s (%dd, %s)", name, config["dim"], config["index"])
-            except Exception as e:
-                logger.error("Milvus collection create failed [%s]: %s", name, e)
+            except Exception:
                 results[name] = False
-
-        health_monitor.record("milvus_collections_ready", sum(1 for v in results.values() if v))
         return results
 
     def search(
@@ -120,73 +86,34 @@ class MilvusClient:
         top_k: int = 20,
         filter_expr: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        ANN search in a collection. Falls back to TF-IDF if Milvus unavailable.
-
-        Returns: [{id, entity_id, score, metadata}]
-        """
-        if self._connected and collection_name in self._collections:
-            return self._milvus_search(collection_name, embedding, top_k, filter_expr)
+        """ANN search using local vector store."""
+        if self._connected and hasattr(self, '_store'):
+            try:
+                results = self._store.search(collection_name, embedding, top_k)
+                if results:
+                    health_monitor.record("milvus_search", 1)
+                    return results
+            except Exception as e:
+                logger.error("Vector search failed [%s]: %s", collection_name, e)
         return self._fallback_search(collection_name, embedding, top_k)
-
-    def _milvus_search(self, collection_name: str, embedding: List[float],
-                       top_k: int, filter_expr: Optional[str]) -> List[Dict]:
-        col = self._collections.get(collection_name)
-        if not col:
-            return []
-
-        search_params = {"metric_type": COLLECTIONS[collection_name]["metric"]}
-        search_params["params"] = SEARCH_PARAMS.get(collection_name, {"nprobe": 16})
-
-        try:
-            results = col.search(
-                data=[embedding],
-                anns_field="embedding",
-                param=search_params,
-                limit=top_k,
-                expr=filter_expr,
-                output_fields=["entity_id", "metadata"],
-            )
-            health_monitor.record("milvus_search", 1)
-
-            return [
-                {
-                    "id": hit.id,
-                    "entity_id": hit.entity.get("entity_id", ""),
-                    "score": float(hit.distance),
-                    "metadata": hit.entity.get("metadata", {}),
-                }
-                for hit in results[0]
-            ]
-        except Exception as e:
-            logger.error("Milvus search failed [%s]: %s", collection_name, e)
-            health_monitor.record("milvus_search_error", 1)
-            return self._fallback_search(collection_name, embedding, top_k)
 
     def insert(
         self,
         collection_name: str,
         entities: List[Dict[str, Any]],
     ) -> bool:
-        """Insert entities into a collection. Entity dict must have: id, tenant_id, entity_id, embedding, metadata."""
-        if not self._connected or collection_name not in self._collections:
+        """Insert entities using local vector store."""
+        if not self._connected or not hasattr(self, '_store'):
             return False
-
-        col = self._collections[collection_name]
         try:
-            ids = [e["id"] for e in entities]
-            tenant_ids = [e.get("tenant_id", "default") for e in entities]
-            entity_ids = [e.get("entity_id", "") for e in entities]
-            embeddings = [e["embedding"] for e in entities]
-            metadatas = [e.get("metadata", {}) for e in entities]
-            timestamps = [e.get("created_at", int(time.time() * 1000)) for e in entities]
-
-            col.insert([ids, tenant_ids, entity_ids, embeddings, metadatas, timestamps])
-            col.flush()
+            vecs = [e.get("embedding", []) for e in entities]
+            ids = [e.get("id", "") for e in entities]
+            metas = [e.get("metadata", {}) for e in entities]
+            self._store.insert(collection_name, vecs, ids, metas)
             health_monitor.record("milvus_insert", len(entities))
             return True
         except Exception as e:
-            logger.error("Milvus insert failed [%s]: %s", collection_name, e)
+            logger.error("Vector insert failed [%s]: %s", collection_name, e)
             return False
 
     # ===== TF-IDF Fallback (real computation, local) =====
@@ -246,20 +173,9 @@ class MilvusClient:
         return entries
 
     def get_stats(self) -> Dict[str, Any]:
-        """Get Milvus connection and collection stats."""
-        if self._connected:
-            utility = self._milvus["utility"]
-            stats = {"connected": True, "host": f"{MILVUS_HOST}:{MILVUS_PORT}", "collections": {}}
-            for name in COLLECTIONS:
-                try:
-                    if utility.has_collection(name):
-                        col = self._milvus["Collection"](name)
-                        stats["collections"][name] = {
-                            "entities": col.num_entities,
-                        }
-                except Exception:
-                    stats["collections"][name] = {"entities": 0}
-            return stats
+        """Get vector store stats."""
+        if self._connected and hasattr(self, '_store'):
+            return self._store.get_stats()
         return {"connected": False, "fallback": "TF-IDF cosine similarity", "collections": {k: {"entities": 100} for k in COLLECTIONS}}
 
 
