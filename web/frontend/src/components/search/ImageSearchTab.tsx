@@ -21,25 +21,28 @@ const ImageSearchTab: React.FC = () => {
   const [searchLib, setSearchLib] = useState('');
 
   // Step 1: 上传并解析 → 生成特征页卡
-  const handleUpload = async (file: UploadFile) => {
-    setFileList([file]);
+  const handleFile = (file: File) => {
+    setFileList([{ uid: '-1', name: file.name, status: 'done' }]);
     setFeatures([]); setSelected([]); setResults([]);
     setDetecting(true);
-    try {
-      const f = file as unknown as Blob;
-      const base64 = await new Promise<string>((res, rej) => {
-        const r = new FileReader(); r.onload = () => res((r.result as string).split(',')[1]); r.onerror = rej;
-        r.readAsDataURL(f);
-      });
-      const resp = await apiPost<any>('/api/v1/search/detect', { image_data: base64 });
-      const profiles = resp?.profiles || [];
-      setFeatures(profiles);
-      if (profiles.length === 0) message.info('未检测到目标');
-      else message.success(`检测到 ${profiles.length} 个目标（${profiles.filter((p:any)=>p.faces?.length).length}人脸/${profiles.filter((p:any)=>p.bodies?.length).length}人体/${profiles.filter((p:any)=>p.vehicles?.length).length}车辆）`);
-      setSelected(profiles.map((p: FeatureData) => p.id));
-    } catch { message.error('检测失败'); }
-    setDetecting(false);
-    return false;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = (reader.result as string).split(',')[1];
+        const resp = await apiPost<any>('/api/v1/search/detect', { image_data: base64 });
+        const profiles = (resp as any)?.profiles || [];
+        setFeatures(profiles);
+        if (profiles.length === 0) message.info('未检测到目标');
+        else message.success(`检测到 ${profiles.length} 个目标`);
+        setSelected(profiles.map((p: FeatureData) => p.id));
+      } catch (e: any) {
+        console.error('Detect error:', e);
+        message.error('检测失败: ' + ((e as any)?.response?.data?.message || (e as any)?.message || '未知错误'));
+      }
+      setDetecting(false);
+    };
+    reader.onerror = () => { message.error('文件读取失败'); setDetecting(false); };
+    reader.readAsDataURL(file);
   };
 
   // Step 2: 选择目标并检索
@@ -79,9 +82,12 @@ const ImageSearchTab: React.FC = () => {
     <div>
       {/* 上传区 */}
       <Card style={{ background: '#16213e', borderColor: '#2a2a4a', marginBottom: 16 }}>
-        <Dragger fileList={fileList} beforeUpload={handleUpload as any}
+        <Dragger
+          showUploadList={{ showRemoveIcon: true }}
           onRemove={() => { setFileList([]); setFeatures([]); setResults([]); }}
-          maxCount={1} accept="image/*" disabled={detecting}>
+          accept="image/*" disabled={detecting}
+          beforeUpload={(file) => { handleFile(file); return false; }}
+        >
           <p className="ant-upload-drag-icon"><InboxOutlined /></p>
           <p className="ant-upload-text">上传目标图片</p>
           <p className="ant-upload-hint">系统将自动解析图中的人脸、人体、车辆等目标</p>
