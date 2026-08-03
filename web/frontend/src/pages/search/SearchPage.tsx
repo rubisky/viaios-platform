@@ -32,8 +32,16 @@ const SearchPage: React.FC = () => {
   React.useEffect(() => {
     (async () => {
       try {
-        const r = await apiGet<any>('/api/v1/search/v2/library');
-        setLibrary(r?.比对库 || {});
+        const r = await apiGet<any>('/api/v1/library/targets?limit=500');
+        const items = r?.results || [];
+        const grouped: Record<string, any[]> = {};
+        items.forEach((t: any) => {
+          const lib = t.library || 'other';
+          if (!grouped[lib]) grouped[lib] = [];
+          grouped[lib].push({ 目标ID: t.id, 名称: t.name, 类型: t.type,
+            最近出现: t.timestamp, 特征图片: [], 属性: t.attributes, 标签: [], 关联案件: '' });
+        });
+        setLibrary(grouped);
       } catch { /* ignore */ }
     })();
   }, []);
