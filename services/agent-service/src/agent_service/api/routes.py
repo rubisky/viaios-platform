@@ -1923,6 +1923,71 @@ async def trajectory_search(req: TrajectorySearchRequest):
     }
 
 
+# ═══════════════════════════════════════════════════════════════════
+# Search Quality API (Phase 4)
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/search/quality/metrics", tags=["Search"])
+async def search_quality_metrics():
+    """Get search quality metrics (P@K, recall, mAP, MRR)."""
+    from agent_service.core.search_quality import get_search_quality
+    m = get_search_quality().get_metrics()
+    return m.__dict__
+
+@router.get("/search/quality/report", tags=["Search"])
+async def search_quality_report():
+    """Get human-readable search quality report."""
+    from agent_service.core.search_quality import get_search_quality
+    return {"report": get_search_quality().report()}
+
+@router.get("/search/quality/stats", tags=["Search"])
+async def search_quality_stats():
+    """Get search quality statistics."""
+    from agent_service.core.search_quality import get_search_quality
+    return get_search_quality().stats()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Search Dashboard API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/search/dashboard", tags=["Search"])
+async def search_dashboard():
+    """Search dashboard — real-time statistics."""
+    from agent_service.core.search_quality import get_search_quality
+    from agent_service.core.attribute_search import get_attribute_search
+    from agent_service.core.search_ranker import get_search_ranker
+    from agent_service.core.graphrag import get_graphrag_engine, SearchMode, GraphRAGQuery
+
+    qm = get_search_quality().get_metrics()
+    ai = get_attribute_search().get_stats()
+    gr = get_graphrag_engine()
+
+    # Quick health test
+    test_result = {}
+    try:
+        r = gr.search(GraphRAGQuery(text="test", mode=SearchMode.HYBRID))
+        test_result["graphrag"] = f"{r.latency_ms:.0f}ms" if r else "N/A"
+    except: test_result["graphrag"] = "error"
+
+    return {
+        "quality": {
+            "total_queries": qm.total_queries,
+            "p_at_10": qm.precision_at_10,
+            "mrr": qm.mrr,
+        },
+        "attribute_index": ai,
+        "health": test_result,
+        "api_endpoints": [
+            "/api/v1/search/trajectory",
+            "/api/v1/search/cross-modal",
+            "/api/v1/search/attributes",
+            "/api/v1/search/rank",
+            "/api/v1/graphrag/search",
+        ],
+    }
+
+
 @router.get("/search/attributes/stats", tags=["Search"])
 async def attribute_stats():
     """Get attribute index statistics."""
