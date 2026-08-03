@@ -1,8 +1,8 @@
 /** FeatureCard — 统一目标特征页卡 (人脸/人体/车辆/步态/非机动车) */
 import React from 'react';
-import { Card, Tag, Descriptions, Space, Badge, Row, Col, Tooltip } from 'antd';
+import { Card, Tag, Descriptions, Space } from 'antd';
 import {
-  UserOutlined, SmileOutlined, CarOutlined, TeamOutlined,
+  SmileOutlined, CarOutlined, TeamOutlined,
   AimOutlined, EnvironmentOutlined,
 } from '@ant-design/icons';
 

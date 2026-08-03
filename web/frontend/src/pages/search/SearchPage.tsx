@@ -111,8 +111,8 @@ const SearchPage: React.FC = () => {
             children: <LibrarySearchTab />,
           } as any,
           {
-            key: 'image', label: <span><CameraOutlined /> 图片搜</span>,
-            children: <ImageSearchTab {...tabProps} />,
+            key: 'image' as any, label: <span><CameraOutlined /> 图片搜</span>,
+            children: <ImageSearchTab />,
           },
           {
             key: 'text', label: <span><FormOutlined /> 文本搜</span>,

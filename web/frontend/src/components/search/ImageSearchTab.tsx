@@ -1,6 +1,6 @@
 /** ImageSearchTab — 上传→AI解析→选目标→检索 */
 import React, { useState } from 'react';
-import { Upload, Button, Row, Col, Card, Typography, message, Select, Checkbox, Space, Tag, Spin, Empty } from 'antd';
+import { Upload, Button, Row, Col, Card, Typography, message, Select, Space, Tag, Spin, Empty } from 'antd';
 import { InboxOutlined, SearchOutlined, AimOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import FeatureCard, { FeatureData } from './FeatureCard';
@@ -9,15 +9,7 @@ import { apiPost } from '../../api/client';
 const { Text } = Typography;
 const { Dragger } = Upload;
 
-interface DetectedObject {
-  id: string; class: string; confidence: number;
-  bbox: [number,number,number,number]; embedding: number[];
-  attributes: Record<string,any>;
-}
 interface SearchResult { target_id:string; name:string; score:number; rank:number; library:string; type:string; camera:string; attributes:any; }
-
-const classColors: Record<string,string> = { person:'#4ecdc4', face:'#ff6b6b', vehicle:'#45b7d1', body:'#96ceb4' };
-const classNames: Record<string,string> = { person:'人员', face:'人脸', vehicle:'车辆', body:'人体' };
 
 const ImageSearchTab: React.FC = () => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -59,7 +51,7 @@ const ImageSearchTab: React.FC = () => {
       const allResults: SearchResult[] = [];
       for (const ft of selFeatures) {
         // Use primary embedding (face if available, else first body)
-        const emb = ft.faces?.[0]?.attributes?.embedding || ft.bodies?.[0]?.attributes?.embedding;
+        const emb = (ft.faces?.[0] as any)?.attributes?.embedding || (ft.bodies?.[0] as any)?.attributes?.embedding;
         const r = await apiPost<any>('/api/v1/library/search/1vn', {
           embedding: emb || [],
           library: searchLib || '',
@@ -88,7 +80,7 @@ const ImageSearchTab: React.FC = () => {
       {/* 上传区 */}
       <Card style={{ background: '#16213e', borderColor: '#2a2a4a', marginBottom: 16 }}>
         <Dragger fileList={fileList} beforeUpload={handleUpload as any}
-          onRemove={() => { setFileList([]); setObjects([]); setResults([]); }}
+          onRemove={() => { setFileList([]); setFeatures([]); setResults([]); }}
           maxCount={1} accept="image/*" disabled={detecting}>
           <p className="ant-upload-drag-icon"><InboxOutlined /></p>
           <p className="ant-upload-text">上传目标图片</p>
@@ -147,7 +139,7 @@ const ImageSearchTab: React.FC = () => {
         </Card>
       )}
 
-      {objects.length===0 && !detecting && fileList.length>0 && (
+      {features.length===0 && !detecting && fileList.length>0 && (
         <Empty description="未检测到目标，请尝试其他图片" />
       )}
     </div>
