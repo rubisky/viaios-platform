@@ -1,7 +1,7 @@
 /** Target Library — 目标库管理 */
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Select, Input, Tabs } from 'antd';
-import { DatabaseOutlined, SearchOutlined, ReloadOutlined, CameraOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Select } from 'antd';
+import { DatabaseOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiGet } from '../../api/client';
 
 const libColors: Record<string,string>={snapshot:'blue',upload:'green',watchlist:'red',history:'orange'};

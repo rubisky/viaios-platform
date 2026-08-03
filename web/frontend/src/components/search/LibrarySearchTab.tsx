@@ -1,11 +1,11 @@
 /** LibrarySearchTab — 1:N 目标库检索 */
 import React, { useState } from 'react';
-import { Upload, Button, Row, Col, Card, Typography, message, Image, Select, Table, Tag, Space, Statistic, Badge } from 'antd';
+import { Upload, Button, Row, Col, Card, Typography, message, Select, Table, Tag, Space, Statistic, Badge } from 'antd';
 import { InboxOutlined, SearchOutlined, DatabaseOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { apiPost, apiGet } from '../../api/client';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { Dragger } = Upload;
 
 const libNames: Record<string,string> = {snapshot:'抓拍库',upload:'离线上传库',watchlist:'重点人员库',history:'历史解析库','':'全部库'};
