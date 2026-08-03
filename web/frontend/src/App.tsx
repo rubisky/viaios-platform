@@ -5,7 +5,7 @@ import type { MenuProps } from 'antd';
 import {
   DashboardOutlined, SearchOutlined, FolderOpenOutlined, FileTextOutlined,
   SettingOutlined, VideoCameraOutlined, ApartmentOutlined, AimOutlined, NodeIndexOutlined,
-  UserOutlined, LogoutOutlined, MenuOutlined,
+  UserOutlined, LogoutOutlined, MenuOutlined, DatabaseOutlined,
 } from '@ant-design/icons';
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const CaseList = lazy(() => import('@/pages/cases/CaseList'));
@@ -51,12 +51,12 @@ const menuItems: MenuItem[] = [
   { key: '/knowledge', icon: <ApartmentOutlined />, label: '知识图谱' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统管理' },
   { key: '/models', icon: <SettingOutlined />, label: '模型管理' },
-  { key: '/audit', icon: <SettingOutlined />, label: '审计日志' },
   { key: '/diagnostics', icon: <SettingOutlined />, label: '系统诊断' },
   { key: '/wizard', icon: <SettingOutlined />, label: '设置向导' },
   { key: '/prompts', icon: <SettingOutlined />, label: '提示词管理' },
   { key: '/documents', icon: <SettingOutlined />, label: '文档中心' },
-  { key: '/library', icon: <SettingOutlined />, label: '目标库' },
+  { key: '/audit', icon: <SettingOutlined />, label: '审计日志' },
+  { key: '/library', icon: <DatabaseOutlined />, label: '目标库管理' },
 ];
 
 const MainLayout: React.FC = () => {
