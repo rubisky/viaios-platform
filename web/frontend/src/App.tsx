@@ -28,6 +28,7 @@ const SettingsWizard = lazy(() => import('@/pages/admin/SettingsWizard'));
 const AlarmCenter = lazy(() => import('@/pages/surveillance/AlarmCenter'));
 const PromptManagement = lazy(() => import('@/pages/admin/PromptManagement'));
 const DocumentCenter = lazy(() => import('@/pages/admin/DocumentCenter'));
+const TargetLibrary = lazy(() => import('@/pages/admin/TargetLibrary'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 import AuthGuard from '@/components/AuthGuard';
 import NotificationBell from '@/components/NotificationBell';
@@ -55,6 +56,7 @@ const menuItems: MenuItem[] = [
   { key: '/wizard', icon: <SettingOutlined />, label: '设置向导' },
   { key: '/prompts', icon: <SettingOutlined />, label: '提示词管理' },
   { key: '/documents', icon: <SettingOutlined />, label: '文档中心' },
+  { key: '/library', icon: <SettingOutlined />, label: '目标库' },
 ];
 
 const MainLayout: React.FC = () => {
@@ -198,6 +200,7 @@ const MainLayout: React.FC = () => {
             <Route path="/wizard" element={<SettingsWizard />} />
             <Route path="/prompts" element={<PromptManagement />} />
             <Route path="/documents" element={<DocumentCenter />} />
+            <Route path="/library" element={<TargetLibrary />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
           </Suspense>
