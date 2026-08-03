@@ -2120,7 +2120,7 @@ class DetectRequest(BaseModel):
 
 @router.post("/search/detect", tags=["Search"])
 async def search_detect(req: DetectRequest):
-    """Analyze image and return detected objects (face/person/vehicle)."""
+    """Analyze image and return grouped feature profiles (face+body merged per person)."""
     import hashlib, random, base64, uuid
     try:
         img_bytes = base64.b64decode(req.image_data)
@@ -2130,30 +2130,73 @@ async def search_detect(req: DetectRequest):
     seed = int(hashlib.sha256(img_bytes).hexdigest()[:8], 16)
     rng = random.Random(seed)
 
-    objects = []
-    classes = rng.choices(['person','person','face','vehicle','body'], k=rng.randint(1,5))
+    profiles = []
+    person_count = rng.randint(1, 4)
 
-    for i, cls in enumerate(classes):
-        dim = 512
-        emb = [rng.uniform(-1, 1) for _ in range(dim)]
-        objects.append({
-            "id": f"det-{uuid.uuid4().hex[:6]}",
-            "class": cls,
-            "confidence": round(rng.uniform(0.70, 0.96), 2),
-            "bbox": [rng.randint(50, 1800), rng.randint(50, 900), rng.randint(30, 200), rng.randint(30, 300)],
-            "embedding": emb,
-            "attributes": {
+    for pi in range(person_count):
+        pid = f"profile-{uuid.uuid4().hex[:6]}"
+        has_face = rng.random() > 0.3
+        has_body = rng.random() > 0.2
+        emb_dim = 512
+        emb = [rng.uniform(-1, 1) for _ in range(emb_dim)]
+
+        profile = {
+            "id": pid,
+            "name": f"目标-{chr(65+pi)}",
+            "type": "person",
+            "confidence": round(rng.uniform(0.75, 0.96), 2),
+        }
+
+        # Face features
+        if has_face:
+            profile["faces"] = [{
+                "id": f"face-{pid}",
+                "confidence": round(rng.uniform(0.80, 0.97), 2),
                 "gender": rng.choice(["male","female"]),
-                "age_group": rng.choice(["20-30","30-45","45-60"]),
-                "upper_color": rng.choice(["black","blue","white","red","gray"]),
-                "upper_clothing": rng.choice(["jacket","shirt","hoodie","coat"]),
-            } if cls in ('person','face','body') else {
-                "color": rng.choice(["black","white","silver","red"]),
-                "type": rng.choice(["car","suv","truck"]),
-            },
+                "age": str(rng.randint(20, 55)),
+                "attributes": {
+                    "embedding": emb,
+                    "glass": rng.choice(["无","有"]),
+                    "mask": rng.choice(["无","有"]),
+                    "expression": rng.choice(["neutral","smiling"]),
+                },
+            }]
+
+        # Body features
+        if has_body:
+            profile["bodies"] = [{
+                "id": f"body-{pid}",
+                "confidence": round(rng.uniform(0.75, 0.93), 2),
+                "height": f"{rng.randint(160,185)}cm",
+                "build": rng.choice(["slim","medium","heavy"]),
+                "upper_clothing": rng.choice(["外套","衬衫","卫衣","T恤","夹克"]),
+                "upper_color": rng.choice(["黑色","蓝色","白色","红色","灰色"]),
+                "lower_clothing": rng.choice(["长裤","牛仔裤","短裤"]),
+                "lower_color": rng.choice(["黑色","蓝色","灰色"]),
+                "has_backpack": rng.random() > 0.7,
+                "has_hat": rng.random() > 0.8,
+                "has_mask": rng.random() > 0.6,
+            }]
+
+        profiles.append(profile)
+
+    # Possibly add a vehicle
+    if rng.random() > 0.5:
+        vid = f"profile-{uuid.uuid4().hex[:6]}"
+        profiles.append({
+            "id": vid, "name": f"车辆-{rng.choice(['A','B'])}", "type": "vehicle",
+            "confidence": round(rng.uniform(0.70, 0.92), 2),
+            "vehicles": [{
+                "id": f"veh-{vid}",
+                "confidence": round(rng.uniform(0.70, 0.92), 2),
+                "type": rng.choice(["轿车","SUV","卡车","面包车"]),
+                "color": rng.choice(["黑色","白色","银色","红色"]),
+                "plate": f"京{rng.choice('ABCDEFGH')}{rng.randint(10000,99999)}",
+                "brand": rng.choice(["奥迪","宝马","奔驰","丰田","本田"]),
+            }],
         })
 
-    return {"total": len(objects), "objects": objects}
+    return {"total": len(profiles), "profiles": profiles}
 
 
 @router.get("/search/quality/metrics", tags=["Search"])
