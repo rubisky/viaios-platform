@@ -1,6 +1,6 @@
 /** ImageSearchTab — 上传→AI解析→选目标→检索 */
 import React, { useState } from 'react';
-import { Upload, Button, Row, Col, Card, Typography, message, Image, Select, Checkbox, Space, Tag, Spin, Empty } from 'antd';
+import { Upload, Button, Row, Col, Card, Typography, message, Select, Checkbox, Space, Tag, Spin, Empty } from 'antd';
 import { InboxOutlined, SearchOutlined, AimOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { apiPost } from '../../api/client';

@@ -1,7 +1,7 @@
 /** Target Library Manager — 抓拍库/上传库/布控库/历史库 全管理 */
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, Table, Tag, Button, Space, Row, Col, Statistic, Select, Upload, Modal, Input, message, Tabs, Popconfirm } from 'antd';
-import { DatabaseOutlined, UploadOutlined, ReloadOutlined, DeleteOutlined, CameraOutlined, PlusOutlined, InboxOutlined } from '@ant-design/icons';
+import { DatabaseOutlined, UploadOutlined, ReloadOutlined, DeleteOutlined, PlusOutlined, InboxOutlined } from '@ant-design/icons';
 import { apiGet, apiPost } from '../../api/client';
 
 const libNames: Record<string,string> = {snapshot:'抓拍库',upload:'离线上传库',watchlist:'重点人员库',history:'历史解析库'};
@@ -18,7 +18,6 @@ const TargetLibrary: React.FC = () => {
   const [uploadName, setUploadName] = useState('');
   const [uploadBase64, setUploadBase64] = useState('');
   const [ingesting, setIngesting] = useState(false);
-  const fileRef = useRef<any>(null);
 
   const fetch = async () => {
     setLoading(true);
@@ -55,11 +54,9 @@ const TargetLibrary: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await apiPost(`/api/v1/library/targets/${id}`, {});
-      // Use DELETE via fetch
-      await fetch(`/api/v1/library/targets/${id}`, { method: 'DELETE' });
-      message.success('已删除');
-      fetch();
+      const res = await fetch(`/api/v1/library/targets/${id}`, { method: 'DELETE' });
+      if (res.ok) { message.success('已删除'); fetch(); }
+      else { message.error('删除失败'); }
     } catch { message.error('删除失败'); }
   };
 

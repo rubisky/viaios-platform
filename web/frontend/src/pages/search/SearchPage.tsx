@@ -109,7 +109,7 @@ const SearchPage: React.FC = () => {
           {
             key: 'library', label: <span><DatabaseOutlined /> 库检索</span>,
             children: <LibrarySearchTab />,
-          },
+          } as any,
           {
             key: 'image', label: <span><CameraOutlined /> 图片搜</span>,
             children: <ImageSearchTab {...tabProps} />,
