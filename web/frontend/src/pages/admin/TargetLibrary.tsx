@@ -19,7 +19,7 @@ const TargetLibrary: React.FC = () => {
   const [uploadBase64, setUploadBase64] = useState('');
   const [ingesting, setIngesting] = useState(false);
 
-  const fetch = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
       const lib = activeTab === 'all' ? '' : activeTab;
@@ -33,7 +33,7 @@ const TargetLibrary: React.FC = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetch(); }, [activeTab]);
+  useEffect(() => { fetchData(); }, [activeTab]);
 
   const handleUpload = async () => {
     if (!uploadBase64) { message.warning('请选择图片'); return; }
@@ -47,7 +47,7 @@ const TargetLibrary: React.FC = () => {
       message.success('入库成功');
       setUploadOpen(false);
       setUploadBase64('');
-      fetch();
+      fetchData();
     } catch { message.error('入库失败'); }
     setIngesting(false);
   };
@@ -55,7 +55,7 @@ const TargetLibrary: React.FC = () => {
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/v1/library/targets/${id}`, { method: 'DELETE' });
-      if (res.ok) { message.success('已删除'); fetch(); }
+      if (res.ok) { message.success('已删除'); fetchData(); }
       else { message.error('删除失败'); }
     } catch { message.error('删除失败'); }
   };
@@ -71,7 +71,7 @@ const TargetLibrary: React.FC = () => {
           name: file.name,
         });
         message.success(`${file.name} 已入库`);
-        fetch();
+        fetchData();
       } catch { message.error(`${file.name} 入库失败`); }
     };
     reader.readAsDataURL(file);
@@ -83,7 +83,7 @@ const TargetLibrary: React.FC = () => {
       <Space style={{ marginBottom: 16, justifyContent: 'space-between', width: '100%' }}>
         <span style={{ color: '#e0e0e0', fontSize: 18 }}><DatabaseOutlined /> 目标库管理</span>
         <Space>
-          <Button icon={<ReloadOutlined />} loading={loading} onClick={fetch}>刷新</Button>
+          <Button icon={<ReloadOutlined />} loading={loading} onClick={fetchData}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => { setUploadLib(activeTab==='all'?'upload':activeTab); setUploadOpen(true); }}>添加目标</Button>
         </Space>
       </Space>
