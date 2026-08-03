@@ -1858,6 +1858,71 @@ async def attribute_schema(entity_type: str = "person"):
     from agent_service.core.attribute_search import get_attribute_search
     return {"entity_type": entity_type, "schema": get_attribute_search().get_schema(entity_type)}
 
+# ═══════════════════════════════════════════════════════════════════
+# Cross-modal Search API (Phase 3)
+# ═══════════════════════════════════════════════════════════════════
+
+class CrossModalRequest(BaseModel):
+    image_data: Optional[str] = None
+    image_url: Optional[str] = None
+    text_query: str = ""
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+    entity_types: List[str] = Field(default_factory=list)
+    max_results: int = Field(default=50, le=200)
+
+@router.post("/search/cross-modal", tags=["Search"])
+async def cross_modal_search(req: CrossModalRequest):
+    """Phase 3: Cross-modal fusion search (image+text+attribute+graph)."""
+    from agent_service.core.cross_modal_search import get_cross_modal, CrossModalQuery
+    query = CrossModalQuery(
+        image_data=req.image_data, image_url=req.image_url,
+        text_query=req.text_query, attributes=req.attributes,
+        entity_types=req.entity_types, max_results=req.max_results,
+    )
+    results = get_cross_modal().search(query)
+    return {
+        "total": len(results),
+        "results": [
+            {"entity_id": r.entity_id, "entity_type": r.entity_type,
+             "final_score": r.final_score, "sources": r.sources,
+             "image_score": r.image_score, "text_score": r.text_score,
+             "attribute_score": r.attribute_score}
+            for r in results[:30]
+        ],
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Trajectory Search API (Phase 3)
+# ═══════════════════════════════════════════════════════════════════
+
+class TrajectorySearchRequest(BaseModel):
+    image_data: Optional[str] = None
+    image_url: Optional[str] = None
+    target_id: str = ""
+
+@router.post("/search/trajectory", tags=["Search"])
+async def trajectory_search(req: TrajectorySearchRequest):
+    """Phase 3: Upload photo, find target across all cameras."""
+    from agent_service.core.trajectory_search import get_trajectory_search
+    result = get_trajectory_search().search(
+        image_data=req.image_data, image_url=req.image_url,
+        target_id=req.target_id)
+    if not result:
+        return {"error": "No input provided"}
+    return {
+        "target_id": result.target_id,
+        "total_hits": result.total_hits,
+        "cameras": result.cameras,
+        "time_span_minutes": result.time_span_minutes,
+        "trajectory": [
+            {"camera_id": h.camera_id, "camera_name": h.camera_name,
+             "timestamp": h.timestamp, "confidence": h.confidence}
+            for h in result.trajectory
+        ],
+    }
+
+
 @router.get("/search/attributes/stats", tags=["Search"])
 async def attribute_stats():
     """Get attribute index statistics."""
