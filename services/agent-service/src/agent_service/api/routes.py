@@ -1819,6 +1819,52 @@ async def search_rank(req: SearchRankRequest):
     }
 
 
+# ═══════════════════════════════════════════════════════════════════
+# Attribute Search API (Phase 2)
+# ═══════════════════════════════════════════════════════════════════
+
+class AttributeQueryRequest(BaseModel):
+    entity_type: str = "person"
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+    time_start: Optional[str] = None
+    time_end: Optional[str] = None
+    camera_ids: List[str] = Field(default_factory=list)
+    max_results: int = Field(default=50, le=200)
+
+@router.post("/search/attributes", tags=["Search"])
+async def attribute_search(req: AttributeQueryRequest):
+    """Search by person/vehicle attributes."""
+    from agent_service.core.attribute_search import get_attribute_search, AttributeQuery
+    query = AttributeQuery(
+        entity_type=req.entity_type, attributes=req.attributes,
+        time_start=req.time_start, time_end=req.time_end,
+        camera_ids=req.camera_ids, max_results=req.max_results,
+    )
+    results = get_attribute_search().search(query)
+    return {
+        "total": len(results),
+        "results": [
+            {"entity_id": r.entity_id, "entity_type": r.entity_type,
+             "match_score": r.match_score,
+             "matched": f"{r.matched_count}/{r.total_attrs}",
+             "attributes": r.attributes}
+            for r in results
+        ],
+    }
+
+@router.get("/search/attributes/schema/{entity_type}", tags=["Search"])
+async def attribute_schema(entity_type: str = "person"):
+    """Get attribute schema for search UI."""
+    from agent_service.core.attribute_search import get_attribute_search
+    return {"entity_type": entity_type, "schema": get_attribute_search().get_schema(entity_type)}
+
+@router.get("/search/attributes/stats", tags=["Search"])
+async def attribute_stats():
+    """Get attribute index statistics."""
+    from agent_service.core.attribute_search import get_attribute_search
+    return get_attribute_search().get_stats()
+
+
 @router.get("/memory/stats", tags=["Memory"])
 async def memory_stats():
     """Get memory manager statistics."""
