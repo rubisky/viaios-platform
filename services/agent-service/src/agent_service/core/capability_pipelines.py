@@ -198,6 +198,14 @@ class OCRPipeline(BasePipeline):
         except ImportError:
             pass
 
+    def load(self) -> bool:
+        """Override: use PaddleOCR, not ONNX files."""
+        if self._paddle_available:
+            self.loaded = True
+            logger.info("ocr: PaddleOCR available")
+            return True
+        return super().load()  # fallback to ONNX files
+
     def __call__(self, image, **kwargs):
         if self._paddle_available:
             try:
@@ -325,6 +333,12 @@ class VisualReasoningPipeline(BasePipeline):
 
     def __init__(self):
         super().__init__("reasoning", [], (640, 640))
+
+    def load(self) -> bool:
+        """Override: no model needed, LLM-based reasoning."""
+        self.loaded = True
+        logger.info("reasoning: LLM-based (no model)")
+        return True
 
     def _fallback(self, image, **kwargs):
         query = kwargs.get("query", "what is happening?")
