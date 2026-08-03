@@ -8,6 +8,7 @@ import ImageSearchTab from '../../components/search/ImageSearchTab';
 import TextSearchTab from '../../components/search/TextSearchTab';
 import AttributeSearchTab from '../../components/search/AttributeSearchTab';
 import CompositeSearchTab from '../../components/search/CompositeSearchTab';
+import LibrarySearchTab from '../../components/search/LibrarySearchTab';
 import SavedSearchPanel from '../../components/search/SavedSearchPanel';
 import { apiGet } from '../../api/client';
 import type {
@@ -99,12 +100,16 @@ const SearchPage: React.FC = () => {
         onLoad={handleLoadSaved}
       />
 
-      {/* 4 Tabs */}
+      {/* 5 Tabs */}
       <Tabs
         activeKey={activeTab}
         onChange={k => setActiveTab(k as SearchMode)}
         style={{ color: '#e0e0e0' }}
         items={[
+          {
+            key: 'library', label: <span><DatabaseOutlined /> 库检索</span>,
+            children: <LibrarySearchTab />,
+          },
           {
             key: 'image', label: <span><CameraOutlined /> 图片搜</span>,
             children: <ImageSearchTab {...tabProps} />,
