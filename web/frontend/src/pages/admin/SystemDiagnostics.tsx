@@ -44,16 +44,16 @@ const SystemDiagnostics: React.FC = () => {
       <Space style={{ marginBottom: 16, justifyContent: 'space-between', width: '100%' }}>
         <span style={{ color: '#e0e0e0', fontSize: 18 }}><DashboardOutlined /> System Diagnostics</span>
         <Space>
-          <Tag color={downCount === 0 ? 'green' : 'red'}>{downCount === 0 ? 'HEALTHY' : `${downCount} DOWN`}</Tag>
+          <Tag color={downCount === 0 ? 'green' : 'red'}>{downCount === 0 ? '正常' : `${downCount} DOWN`}</Tag>
           <Button icon={<ReloadOutlined />} loading={loading} onClick={fetch}>Refresh ({REFRESH/1000}s)</Button>
         </Space>
       </Space>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        {[{ title: 'Services', value: `${upCount}/${services.length}`, color: downCount ? '#ff4d4f' : '#52c41a' },
-          { title: 'Mesh Endpoints', value: mesh?.total_endpoints || 0, color: '#1677ff' },
-          { title: 'Kernel Managers', value: kernel?.totalManagers || 0, color: '#722ed1' },
-          { title: 'Open Circuits', value: mesh?.open_circuits || 0, color: mesh?.open_circuits ? '#faad14' : '#52c41a' },
+        {[{ title: '服务数', value: `${upCount}/${services.length}`, color: downCount ? '#ff4d4f' : '#52c41a' },
+          { title: '网格端点', value: mesh?.total_endpoints || 0, color: '#1677ff' },
+          { title: '内核管理器', value: kernel?.totalManagers || 0, color: '#722ed1' },
+          { title: '断路数', value: mesh?.open_circuits || 0, color: mesh?.open_circuits ? '#faad14' : '#52c41a' },
         ].map(s => (
           <Col xs={12} sm={6} key={s.title}>
             <Card size="small" style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
@@ -69,10 +69,10 @@ const SystemDiagnostics: React.FC = () => {
             style={{ background: '#16213e', borderColor: '#2a2a4a', marginBottom: 16 }}>
             <Table dataSource={services} loading={loading} rowKey="port" size="small" pagination={false}
               columns={[
-                { title: 'Name', dataIndex: 'name', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
-                { title: 'Port', dataIndex: 'port', width: 60 },
-                { title: 'Group', dataIndex: 'group', width: 70, render: (v: string) => <Tag>{v}</Tag> },
-                { title: 'Status', dataIndex: 'status', width: 80,
+                { title: '名称', dataIndex: 'name', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
+                { title: '端口', dataIndex: 'port', width: 60 },
+                { title: '分组', dataIndex: 'group', width: 70, render: (v: string) => <Tag>{v}</Tag> },
+                { title: '状态', dataIndex: 'status', width: 80,
                   render: (v: string) => <Badge status={v === 'UP' ? 'success' : 'error'} text={v} /> },
               ]}
             />

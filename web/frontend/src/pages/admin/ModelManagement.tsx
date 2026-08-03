@@ -58,10 +58,10 @@ const ModelManagement: React.FC = () => {
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         {[
-          { title: 'Total Models', value: models.length, color: '#1677ff' },
+          { title: '模型总数', value: models.length, color: '#1677ff' },
           { title: 'Active', value: models.filter(m => m.status === 'ACTIVE').length, color: '#52c41a' },
           { title: 'Capabilities', value: capabilities.length, color: '#722ed1' },
-          { title: 'Avg Latency', value: `${Math.round(models.reduce((s, m) => s + (m.avgLatencyMs || 0), 0) / Math.max(models.length, 1))}ms`, color: '#fa8c16' },
+          { title: '平均延迟', value: `${Math.round(models.reduce((s, m) => s + (m.avgLatencyMs || 0), 0) / Math.max(models.length, 1))}ms`, color: '#fa8c16' },
         ].map(s => (
           <Col xs={12} sm={6} key={s.title}>
             <Card size="small" style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
@@ -75,15 +75,15 @@ const ModelManagement: React.FC = () => {
         onRow={r => ({ onClick: () => setSelected(r), style: { cursor: 'pointer' } })}
         style={{ background: '#16213e' }}
         columns={[
-          { title: 'Name', dataIndex: 'name', render: (v: string, r: Model) => <><Badge status={r.status === 'ACTIVE' ? 'success' : 'processing'} /><span style={{ color: '#e0e0e0' }}>{v}</span></> },
+          { title: '名称', dataIndex: 'name', render: (v: string, r: Model) => <><Badge status={r.status === 'ACTIVE' ? 'success' : 'processing'} /><span style={{ color: '#e0e0e0' }}>{v}</span></> },
           { title: 'Version', dataIndex: 'version', render: (v: string) => <Tag>{v}</Tag> },
           { title: 'Runtime', dataIndex: 'runtime', render: (v: string) => <Tag color="blue">{v}</Tag> },
           { title: 'Task', dataIndex: 'task', render: (v: string) => <Tag color="purple">{v}</Tag> },
-          { title: 'Status', dataIndex: 'status', render: (v: string) => <Tag color={statusColor[v] || 'default'}>{v}</Tag> },
+          { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={statusColor[v] || 'default'}>{v}</Tag> },
           { title: 'Precision', dataIndex: 'precision' },
           { title: 'GPU', dataIndex: 'gpuMemoryMb', render: (v: number) => v ? `${v}MB` : '-' },
           {
-            title: 'Actions', render: (_: any, r: Model) => (
+            title: '操作', render: (_: any, r: Model) => (
               <Space size="small">
                 {r.status === 'VALIDATED' && <Button size="small" type="primary" icon={<RocketOutlined />} onClick={e => { e.stopPropagation(); deploy(r.id); }}>Deploy</Button>}
                 {r.status === 'ACTIVE' && <Button size="small" icon={<PauseCircleOutlined />} onClick={e => e.stopPropagation()}>Pause</Button>}

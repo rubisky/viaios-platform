@@ -46,7 +46,7 @@ const AlarmCenter: React.FC = () => {
       <Row gutter={16} style={{ marginBottom: 16 }}>
         {[{ title: 'Total', value: stats.total_alarms || 0, color: '#1677ff' },
           { title: 'Active', value: stats.active_alarms || 0, color: '#ff4d4f' },
-          { title: 'Rules', value: rules.length, color: '#722ed1' },
+          { title: '规则', value: rules.length, color: '#722ed1' },
           { title: 'Critical', value: stats.by_severity?.CRITICAL || 0, color: '#cf1322' },
         ].map(s => (
           <Col xs={12} sm={6} key={s.title}><Card size="small" style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
@@ -59,12 +59,12 @@ const AlarmCenter: React.FC = () => {
         <Table dataSource={alarms} loading={loading} rowKey="id" size="small"
           onRow={() => ({ style: { cursor: 'pointer' } })}
           columns={[
-            { title: 'Time', dataIndex: 'triggered_at', width: 80, render: (v: string) => v?.slice(11,19) },
+            { title: '时间', dataIndex: 'triggered_at', width: 80, render: (v: string) => v?.slice(11,19) },
             { title: 'Rule', dataIndex: 'rule', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
             { title: 'Severity', dataIndex: 'severity', width: 90, render: (v: string) => <Tag color={sevColor[v]}>{v}</Tag> },
-            { title: 'Status', dataIndex: 'status', width: 100, render: (v: string) => <Tag>{v}</Tag> },
+            { title: '状态', dataIndex: 'status', width: 100, render: (v: string) => <Tag>{v}</Tag> },
             { title: 'Message', dataIndex: 'message', ellipsis: true },
-            { title: 'Actions', width: 140, render: (_: any, r: any) => (
+            { title: '操作', width: 140, render: (_: any, r: any) => (
               <Space size="small">
                 {r.status === 'TRIGGERED' && <Button size="small" icon={<CheckOutlined />} onClick={e => { e.stopPropagation(); ack(r.id); }}>Ack</Button>}
                 <Button size="small" onClick={e => { e.stopPropagation(); resolve(r.id); }}>Resolve</Button>
@@ -76,7 +76,7 @@ const AlarmCenter: React.FC = () => {
       <Card title="Rules" size="small" style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
         <Table dataSource={rules} rowKey="id" size="small" pagination={false}
           columns={[
-            { title: 'Name', dataIndex: 'name' }, { title: 'Severity', dataIndex: 'severity', render: (v: string) => <Tag color={sevColor[v]}>{v}</Tag> },
+            { title: '名称', dataIndex: 'name' }, { title: 'Severity', dataIndex: 'severity', render: (v: string) => <Tag color={sevColor[v]}>{v}</Tag> },
             { title: 'Cooldown', dataIndex: 'cooldown_s', render: (v: number) => `${v}s` },
             { title: 'Enabled', dataIndex: 'enabled', render: (v: boolean) => v ? <Tag color="green">Yes</Tag> : <Tag color="red">No</Tag> },
           ]} />

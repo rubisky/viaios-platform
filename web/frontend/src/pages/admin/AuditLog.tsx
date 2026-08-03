@@ -32,17 +32,17 @@ const AuditLog: React.FC = () => {
     try {
       const d = await apiGet<any>(`/api/v1/evidence/chain/${chainId}`);
       setSelectedChain(d);
-    } catch { message.error('Chain not found'); }
+    } catch { message.error('链未找到'); }
   };
 
   return (
     <div>
       <Row gutter={16} style={{ marginBottom: 16 }}>
         {[
-          { title: 'Audit Entries', value: entries.length, icon: <AuditOutlined />, color: '#1677ff' },
-          { title: 'Evidence Chains', value: chains.length, icon: <LinkOutlined />, color: '#52c41a' },
-          { title: 'Intact Chains', value: chains.filter(c => c.intact).length, icon: <SafetyCertificateOutlined />, color: '#722ed1' },
-          { title: 'Violations', value: entries.filter(e => !e.allowed).length, icon: <SearchOutlined />, color: '#ff4d4f' },
+          { title: '审计条目', value: entries.length, icon: <AuditOutlined />, color: '#1677ff' },
+          { title: '证据链', value: chains.length, icon: <LinkOutlined />, color: '#52c41a' },
+          { title: '完整链', value: chains.filter(c => c.intact).length, icon: <SafetyCertificateOutlined />, color: '#722ed1' },
+          { title: '违规', value: entries.filter(e => !e.allowed).length, icon: <SearchOutlined />, color: '#ff4d4f' },
         ].map(s => (
           <Col xs={12} sm={6} key={s.title}>
             <Card size="small" style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
@@ -58,13 +58,13 @@ const AuditLog: React.FC = () => {
         <Table dataSource={entries} loading={loading} rowKey={(_, i) => String(i)} size="small"
           pagination={{ pageSize: 15 }}
           columns={[
-            { title: 'Time', dataIndex: 'timestamp', render: (v: string) => v?.slice(11, 19) || '', width: 80 },
-            { title: 'Agent', dataIndex: 'agent_type', width: 100, render: (v: string) => <Tag>{v}</Tag> },
-            { title: 'User', dataIndex: 'user_id', width: 80 },
-            { title: 'Action', dataIndex: 'action', width: 100 },
-            { title: 'Decision', dataIndex: 'decision', width: 100, render: (v: string) => <Tag color={v === 'ALLOW' ? 'green' : v === 'DENY' ? 'red' : 'orange'}>{v}</Tag> },
-            { title: 'Allowed', dataIndex: 'allowed', width: 80, render: (v: boolean) => v ? <Tag color="green">Yes</Tag> : <Tag color="red">No</Tag> },
-            { title: 'Rules', dataIndex: 'triggered_rules', render: (v: string[]) => v?.map(r => <Tag key={r} color="orange" style={{ fontSize: 10 }}>{r}</Tag>) },
+            { title: '时间', dataIndex: 'timestamp', render: (v: string) => v?.slice(11, 19) || '', width: 80 },
+            { title: '智能体', dataIndex: 'agent_type', width: 100, render: (v: string) => <Tag>{v}</Tag> },
+            { title: '用户', dataIndex: 'user_id', width: 80 },
+            { title: '动作', dataIndex: 'action', width: 100 },
+            { title: '决策', dataIndex: 'decision', width: 100, render: (v: string) => <Tag color={v === 'ALLOW' ? 'green' : v === 'DENY' ? 'red' : 'orange'}>{v}</Tag> },
+            { title: '允许', dataIndex: 'allowed', width: 80, render: (v: boolean) => v ? <Tag color="green">Yes</Tag> : <Tag color="red">No</Tag> },
+            { title: '规则', dataIndex: 'triggered_rules', render: (v: string[]) => v?.map(r => <Tag key={r} color="orange" style={{ fontSize: 10 }}>{r}</Tag>) },
           ]}
         />
       </Card>
@@ -74,12 +74,12 @@ const AuditLog: React.FC = () => {
         <Table dataSource={chains} loading={loading} rowKey="chain_id" size="small"
           onRow={r => ({ onClick: () => viewChain(r.chain_id), style: { cursor: 'pointer' } })}
           columns={[
-            { title: 'Chain ID', dataIndex: 'chain_id', width: 130 },
-            { title: 'Operation', dataIndex: 'operation' },
-            { title: 'Status', dataIndex: 'status', render: (v: string) => <Tag color={v === 'VERIFIED' ? 'green' : v === 'COMPLETED' ? 'blue' : 'orange'}>{v}</Tag> },
-            { title: 'Nodes', dataIndex: 'nodes', width: 60 },
-            { title: 'Intact', dataIndex: 'intact', width: 80, render: (v: boolean) => v ? <Tag color="green">✓ Intact</Tag> : <Tag color="red">✗ Broken</Tag> },
-            { title: 'Created', dataIndex: 'created_at', width: 160, render: (v: string) => v?.slice(0, 19) },
+            { title: '链ID', dataIndex: 'chain_id', width: 130 },
+            { title: '操作类型', dataIndex: 'operation' },
+            { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'VERIFIED' ? 'green' : v === 'COMPLETED' ? 'blue' : 'orange'}>{v}</Tag> },
+            { title: '节点数', dataIndex: 'nodes', width: 60 },
+            { title: '完整', dataIndex: 'intact', width: 80, render: (v: boolean) => v ? <Tag color="green">✓ Intact</Tag> : <Tag color="red">✗ Broken</Tag> },
+            { title: '创建时间', dataIndex: 'created_at', width: 160, render: (v: string) => v?.slice(0, 19) },
           ]}
         />
       </Card>

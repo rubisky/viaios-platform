@@ -21,7 +21,7 @@ const DocumentCenter: React.FC = () => {
       <Row gutter={16} style={{ marginBottom: 16 }}>
         {[{ title: 'Documents', value: mockDocs.length, color: '#1677ff' },
           { title: 'Verified', value: mockDocs.filter((d: any) => d.status === 'verified').length, color: '#52c41a' },
-          { title: 'Total Size', value: '4.0MB', color: '#722ed1' },
+          { title: '总大小', value: '4.0MB', color: '#722ed1' },
         ].map(s => (
           <Col xs={12} sm={8} key={s.title}><Card size="small" style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
             <Statistic title={<span style={{ color: '#a0a0a0' }}>{s.title}</span>} value={s.value} valueStyle={{ color: s.color, fontSize: 20 }} />
@@ -31,13 +31,13 @@ const DocumentCenter: React.FC = () => {
       <Card style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
         <Table dataSource={mockDocs} rowKey="id" size="small" pagination={false}
           columns={[
-            { title: 'Name', dataIndex: 'name', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
-            { title: 'Type', dataIndex: 'type', width: 80, render: (v: string) => <Tag>{v}</Tag> },
+            { title: '名称', dataIndex: 'name', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
+            { title: '类型', dataIndex: 'type', width: 80, render: (v: string) => <Tag>{v}</Tag> },
             { title: 'Format', dataIndex: 'format', width: 70, render: (v: string) => <Tag color="blue">{v}</Tag> },
             { title: 'Case', dataIndex: 'case', width: 80 },
-            { title: 'Status', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={v==='verified'?'green':'gold'}>{v}</Tag> },
+            { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={v==='verified'?'green':'gold'}>{v}</Tag> },
             { title: 'Size', dataIndex: 'size', width: 70 },
-            { title: 'Actions', width: 100, render: () => (
+            { title: '操作', width: 100, render: () => (
               <Space size="small">
                 <Button size="small" icon={<EyeOutlined />}>View</Button>
                 <Button size="small" icon={<DownloadOutlined />}>DL</Button>

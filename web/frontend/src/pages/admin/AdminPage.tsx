@@ -27,20 +27,20 @@ const UsersTab: React.FC = () => {
   const handleCreate = async (values: any) => {
     try {
       await apiPost('/api/v1/admin/users', values);
-      message.success('User created');
+      message.success('用户已创建');
       setModalOpen(false);
       form.resetFields();
       fetchUsers();
-    } catch { message.error('Failed to create user'); }
+    } catch { message.error('创建用户失败'); }
   };
 
   const columns = [
-    { title: 'Username', dataIndex: 'username', key: 'username' },
-    { title: 'Display Name', dataIndex: 'displayName', key: 'displayName' },
-    { title: 'Email', dataIndex: 'email', key: 'email' },
-    { title: 'Status', dataIndex: 'status', key: 'status',
+    { title: '用户名', dataIndex: 'username', key: 'username' },
+    { title: '显示名称', dataIndex: 'displayName', key: 'displayName' },
+    { title: '邮箱', dataIndex: 'email', key: 'email' },
+    { title: '状态', dataIndex: 'status', key: 'status',
       render: (s: string) => <Tag color={s === 'ACTIVE' ? 'green' : 'red'}>{s}</Tag> },
-    { title: 'Created', dataIndex: 'createdAt', key: 'createdAt',
+    { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt',
       render: (d: string) => d ? new Date(d).toLocaleDateString() : '-' },
   ];
 
@@ -85,26 +85,26 @@ const RolesTab: React.FC = () => {
   const handleCreate = async (values: any) => {
     try {
       await apiPost('/api/v1/admin/roles', values);
-      message.success('Role created');
+      message.success('角色已创建');
       setModalOpen(false);
       form.resetFields();
       fetchRoles();
-    } catch { message.error('Failed to create role'); }
+    } catch { message.error('创建角色失败'); }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await apiDelete(`/api/v1/admin/roles/${id}`);
-      message.success('Role deleted');
+      message.success('角色已删除');
       fetchRoles();
-    } catch { message.error('Failed to delete role'); }
+    } catch { message.error('删除角色失败'); }
   };
 
   const columns = [
-    { title: 'Role Name', dataIndex: 'roleName', key: 'roleName' },
-    { title: 'Display Name', dataIndex: 'displayName', key: 'displayName' },
-    { title: 'Description', dataIndex: 'description', key: 'description' },
-    { title: 'Actions', key: 'actions',
+    { title: '角色名', dataIndex: 'roleName', key: 'roleName' },
+    { title: '显示名称', dataIndex: 'displayName', key: 'displayName' },
+    { title: '描述', dataIndex: 'description', key: 'description' },
+    { title: '操作', key: 'actions',
       render: (_: any, record: any) => (
         <Popconfirm title="Delete this role?" onConfirm={() => handleDelete(record.id)}>
           <Button type="link" danger icon={<DeleteOutlined />} size="small" />
@@ -151,19 +151,19 @@ const TenantsTab: React.FC = () => {
   const handleCreate = async (values: any) => {
     try {
       await apiPost('/api/v1/admin/tenants', values);
-      message.success('Tenant created');
+      message.success('租户已创建');
       setModalOpen(false);
       form.resetFields();
       fetchTenants();
-    } catch { message.error('Failed to create tenant'); }
+    } catch { message.error('创建租户失败'); }
   };
 
   const columns = [
-    { title: 'Tenant Name', dataIndex: 'tenantName', key: 'tenantName' },
-    { title: 'Display Name', dataIndex: 'displayName', key: 'displayName' },
-    { title: 'Plan', dataIndex: 'plan', key: 'plan',
+    { title: '租户名', dataIndex: 'tenantName', key: 'tenantName' },
+    { title: '显示名称', dataIndex: 'displayName', key: 'displayName' },
+    { title: '套餐', dataIndex: 'plan', key: 'plan',
       render: (p: string) => <Tag color={p === 'enterprise' ? 'gold' : 'blue'}>{p}</Tag> },
-    { title: 'Status', dataIndex: 'status', key: 'status',
+    { title: '状态', dataIndex: 'status', key: 'status',
       render: (s: string) => <Tag color={s === 'ACTIVE' ? 'green' : 'red'}>{s}</Tag> },
   ];
 

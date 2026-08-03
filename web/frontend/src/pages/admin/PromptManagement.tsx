@@ -23,10 +23,10 @@ const PromptManagement: React.FC = () => {
       </Space>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        {[{ title: 'Templates', value: templates.length, color: '#722ed1' },
-          { title: 'Market Listings', value: market.total_listings || 0, color: '#1677ff' },
-          { title: 'Avg Rating', value: (market.avg_rating || 0).toFixed(1), color: '#fa8c16' },
-          { title: 'Active AB Tests', value: market.ab_tests || 0, color: '#52c41a' },
+        {[{ title: '模板', value: templates.length, color: '#722ed1' },
+          { title: '市场列表', value: market.total_listings || 0, color: '#1677ff' },
+          { title: '平均评分', value: (market.avg_rating || 0).toFixed(1), color: '#fa8c16' },
+          { title: '活跃AB测试', value: market.ab_tests || 0, color: '#52c41a' },
         ].map(s => (
           <Col xs={12} sm={6} key={s.title}><Card size="small" style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
             <Statistic title={<span style={{ color: '#a0a0a0' }}>{s.title}</span>} value={s.value} valueStyle={{ color: s.color, fontSize: 20 }} />
@@ -36,14 +36,14 @@ const PromptManagement: React.FC = () => {
 
       <Tabs defaultActiveKey="templates" items={[
         {
-          key: 'templates', label: 'Templates', children: (
+          key: 'templates', label: '模板', children: (
             <Card style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
               <Table dataSource={templates} rowKey="name" size="small" pagination={false}
                 columns={[
-                  { title: 'Name', dataIndex: 'name', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
+                  { title: '名称', dataIndex: 'name', render: (v: string) => <span style={{ color: '#e0e0e0' }}>{v}</span> },
                   { title: 'Version', dataIndex: 'version', width: 80, render: (v: string) => <Tag>{v}</Tag> },
                   { title: 'Category', dataIndex: 'category', width: 100, render: (v: string) => <Tag color="blue">{v}</Tag> },
-                  { title: 'Status', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={v==='active'?'green':'default'}>{v}</Tag> },
+                  { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => <Tag color={v==='active'?'green':'default'}>{v}</Tag> },
                   { title: 'Usage', dataIndex: 'usage_count', width: 80 },
                   { title: 'Score', dataIndex: 'avg_score', width: 80, render: (v: number) => <Progress percent={Math.round((v||0)*100)} size="small" /> },
                 ]} />
@@ -51,7 +51,7 @@ const PromptManagement: React.FC = () => {
           ),
         },
         {
-          key: 'market', label: 'Marketplace', children: (
+          key: 'market', label: '市场', children: (
             <Card style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
               <Descriptions column={2} size="small" bordered>
                 <Descriptions.Item label="Total Listings">{market.total_listings || 0}</Descriptions.Item>
@@ -63,14 +63,14 @@ const PromptManagement: React.FC = () => {
           ),
         },
         {
-          key: 'ab', label: 'A/B Tests', children: (
+          key: 'ab', label: 'AB测试', children: (
             <Card style={{ background: '#16213e', borderColor: '#2a2a4a' }}>
               <Button icon={<ExperimentOutlined />}>Create A/B Test</Button>
               <Table style={{ marginTop: 16 }} dataSource={[]} size="small"
                 columns={[
                   { title: 'Test', dataIndex: 'name' },
-                  { title: 'Variant A', dataIndex: 'a' },
-                  { title: 'Variant B', dataIndex: 'b' },
+                  { title: '方案A', dataIndex: 'a' },
+                  { title: '方案B', dataIndex: 'b' },
                   { title: 'Winner', dataIndex: 'winner', render: (v: string) => <Tag color="green">{v}</Tag> },
                 ]} />
             </Card>

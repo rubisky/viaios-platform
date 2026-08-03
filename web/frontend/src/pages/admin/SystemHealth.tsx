@@ -23,7 +23,7 @@ const SystemHealth: React.FC = () => {
       const data = await apiGet<any>('/api/system/services');
       const svcList = data?.services || [];
       const results = svcList.map((svc: any) => ({
-        name: svc.name, port: svc.port, status: svc.status || 'DOWN',
+        name: svc.name, port: svc.port, status: svc.status || '异常',
         latency: 0, group: svc.group || 'Java'
       } as HealthDetail));
       setServices(results.length > 0 ? results : SERVICES.map(s => ({ ...s, status: 'UP', latency: 0, group: s.port >= 8191 ? 'Python' : 'Java' })));
