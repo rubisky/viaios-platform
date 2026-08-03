@@ -2050,6 +2050,33 @@ async def library_list(library: str = "", type: str = "",
         ],
     }
 
+# ═══════════════════════════════════════════════════════════════════
+# Camera Snapshot API
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/snapshot/stats", tags=["Snapshot"])
+async def snapshot_stats():
+    """Get camera snapshot pipeline statistics."""
+    from agent_service.core.camera_snapshot import get_snapshot_pipeline
+    return get_snapshot_pipeline().get_stats()
+
+@router.post("/snapshot/capture/{camera_id}", tags=["Snapshot"])
+async def snapshot_capture(camera_id: str):
+    """Manually trigger a snapshot capture from a camera."""
+    from agent_service.core.camera_snapshot import get_snapshot_pipeline
+    result = get_snapshot_pipeline().capture_once(camera_id)
+    if not result:
+        raise HTTPException(404, "Camera not found")
+    return result
+
+@router.post("/snapshot/camera/{camera_id}", tags=["Snapshot"])
+async def snapshot_add_camera(camera_id: str, name: str = "", interval: int = 5):
+    """Register a camera for snapshot capture."""
+    from agent_service.core.camera_snapshot import get_snapshot_pipeline
+    get_snapshot_pipeline().add_camera(camera_id, name, interval_seconds=interval)
+    return {"status": "registered", "camera_id": camera_id}
+
+
 @router.get("/library/stats", tags=["Target Library"])
 async def library_stats():
     """Get target library statistics."""
